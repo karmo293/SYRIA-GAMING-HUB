@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "Game": {
+      "title": "Game",
+      "description": "A game available in the store.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "steamUrl": { "type": "string" },
+        "ourPrice": { "type": "number" },
+        "steamPrice": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "imageUrl", "ourPrice", "steamPrice"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A digital product (keys, UC, Nitro, etc.) related to a game or standalone.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "gameId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string", "enum": ["Key", "Currency", "Subscription", "Other"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "imageUrl", "price", "category"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user of the application.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "ownedGames": { "type": "array", "items": { "type": "string" } },
+        "wishlist": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A user review for a game.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "gameId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["gameId", "userId", "userEmail", "rating", "comment"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A purchase record/invoice for a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "object" } },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["completed", "pending", "failed"] },
+        "paymentMethod": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "items", "totalAmount", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/games/{gameId}": {
+      "schema": "Game",
+      "description": "Collection of games."
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Collection of digital products."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles."
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Collection of user reviews."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of user orders."
+    }
+  }
+}

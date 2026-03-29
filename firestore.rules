@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: games
+    // Fields: title, description, imageUrl, steamUrl, ourPrice, steamPrice, createdAt
+    //
+    // Collection: products
+    // Fields: gameId, title, description, imageUrl, price, category, createdAt
+    //
+    // Collection: users
+    // Fields: uid, email, role, createdAt, ownedGames, wishlist
+    //
+    // Collection: reviews
+    // Fields: gameId, userId, userEmail, rating, comment, createdAt
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "karmo2931@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidGame(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 2000 &&
+             data.imageUrl is string && data.imageUrl.size() > 0 &&
+             data.steamUrl is string &&
+             data.ourPrice is number && data.ourPrice >= 0 &&
+             data.steamPrice is number && data.steamPrice >= 0 &&
+             data.deliveryType in ['Steam Key', 'Steam Account', 'Discord Nitro', 'Other'] &&
+             data.deliveryDetails is string &&
+             data.deliveryInstructions is string &&
+             (!('deliveryStatus' in data) || data.deliveryStatus in ['Pending', 'Processing', 'Delivered', 'Ready for pickup']) &&
+             (!('stock' in data) || data.stock is number);
+    }
+
+    function isValidProduct(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 2000 &&
+             data.imageUrl is string && data.imageUrl.size() > 0 &&
+             data.price is number && data.price >= 0 &&
+             data.category in ['Key', 'Currency', 'Subscription', 'Other'] &&
+             data.deliveryType in ['Steam Key', 'Steam Account', 'Discord Nitro', 'Other'] &&
+             data.deliveryDetails is string &&
+             data.deliveryInstructions is string &&
+             (!('deliveryStatus' in data) || data.deliveryStatus in ['Pending', 'Processing', 'Delivered', 'Ready for pickup']) &&
+             (!('stock' in data) || data.stock is number);
+    }
+
+    function isValidUser(data) {
+      return data.uid is string && data.email is string &&
+             data.role in ['admin', 'user'] &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 50)) &&
+             (!('ownedGames' in data) || data.ownedGames is list) &&
+             (!('wishlist' in data) || data.wishlist is list);
+    }
+
+    function isValidContactMessage(data) {
+      return data.name is string && data.name.size() > 0 &&
+             data.email is string && data.email.size() > 0 &&
+             data.subject is string && data.subject.size() > 0 &&
+             data.message is string && data.message.size() > 0 &&
+             data.status in ['new', 'read', 'replied'];
+    }
+
+    function isValidReview(data) {
+      return data.gameId is string &&
+             data.userId == request.auth.uid &&
+             data.userEmail is string &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() > 0 && data.comment.size() < 1000;
+    }
+
+    function isValidOrder(data) {
+      return data.userId == request.auth.uid &&
+             data.userEmail is string &&
+             data.items is list &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.status in ['completed', 'pending', 'failed'] &&
+             data.paymentMethod is string &&
+             data.createdAt is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /games/{gameId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() && isValidGame(request.resource.data);
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() && isValidProduct(request.resource.data);
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownedGames', 'notifications', 'wishlist', 'displayName'])) || isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidReview(request.resource.data);
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
+    match /contact_messages/{messageId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+  }
+}
