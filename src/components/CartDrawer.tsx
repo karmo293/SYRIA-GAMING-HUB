@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, CreditCard } from 'lucide-react';
+import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, CreditCard, Zap } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { Link } from 'react-router-dom';
 import PaymentModal from './PaymentModal';
+import ConfirmationModal from './ConfirmationModal';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -12,7 +13,8 @@ interface CartDrawerProps {
 
 const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
   const { cartItems, removeFromCart, updateQuantity, totalPrice, itemCount } = useCart();
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = React.useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
 
   return (
     <>
@@ -43,7 +45,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                     <ShoppingBag className="text-cyan-400 w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black uppercase italic tracking-tighter">سلة التسوق</h2>
+                    <h2 className="text-xl font-black uppercase italic">سلة التسوق</h2>
                     <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{itemCount} منتجات</p>
                   </div>
                 </div>
@@ -126,13 +128,20 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                       <span>المجموع الفرعي</span>
                       <span>${totalPrice.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-lg font-black italic uppercase tracking-tighter">
+                    <div className="flex justify-between items-center bg-cyan-500/5 border border-cyan-500/10 p-2 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-3 h-3 text-cyan-400" />
+                        <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">مكافأة XP المتوقعة</span>
+                      </div>
+                      <span className="text-xs font-black text-white">+{Math.floor(totalPrice * 10)} XP</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-black italic uppercase">
                       <span>الإجمالي</span>
                       <span className="text-cyan-400">${totalPrice.toFixed(2)}</span>
                     </div>
                   </div>
                   <button
-                    onClick={() => setIsPaymentModalOpen(true)}
+                    onClick={() => setShowCheckoutConfirm(true)}
                     className="w-full bg-cyan-500 hover:bg-cyan-600 text-black py-4 rounded-2xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]"
                   >
                     <CreditCard className="w-5 h-5" />
@@ -148,6 +157,15 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
         isOpen={isPaymentModalOpen} 
         onClose={() => setIsPaymentModalOpen(false)} 
         isCart
+      />
+      <ConfirmationModal
+        isOpen={showCheckoutConfirm}
+        onClose={() => setShowCheckoutConfirm(false)}
+        onConfirm={() => setIsPaymentModalOpen(true)}
+        title="تأكيد الطلب"
+        message="هل أنت متأكد من رغبتك في الانتقال إلى صفحة الدفع وإتمام الطلب؟"
+        confirmText="نعم، تابع"
+        cancelText="إلغاء"
       />
     </>
   );

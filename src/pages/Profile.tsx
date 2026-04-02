@@ -4,8 +4,10 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { db } from '../firebase';
 import { Game } from '../types';
 import { motion } from 'motion/react';
-import { User, Mail, Calendar, Gamepad2, ChevronRight, ShoppingBag, Package, Key, User as UserIcon, CheckCircle2, Info, Heart, Settings, Save } from 'lucide-react';
+import { User, Mail, Calendar, Gamepad2, ChevronRight, ShoppingBag, Package, Key, User as UserIcon, CheckCircle2, Info, Heart, Settings, Save, Copy, CreditCard, Sparkles, AlertCircle, Clock, RefreshCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import SteamIntegration from '../components/SteamIntegration';
+import WalletManager from '../components/WalletManager';
 
 const Profile: React.FC = () => {
   const { user, userProfile, loading: authLoading, updateDisplayName } = useAuth();
@@ -14,6 +16,17 @@ const Profile: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState(userProfile?.displayName || '');
   const [updatingName, setUpdatingName] = useState(false);
+
+  const deliverySteps = [
+    { id: 'Pending', label: 'انتظار', icon: <Clock className="w-3 h-3" /> },
+    { id: 'Processing', label: 'معالجة', icon: <RefreshCcw className="w-3 h-3" /> },
+    { id: 'Ready for pickup', label: 'جاهز', icon: <Package className="w-3 h-3" /> },
+    { id: 'Delivered', label: 'تم', icon: <CheckCircle2 className="w-3 h-3" /> }
+  ];
+
+  const getStatusIndex = (status: string) => {
+    return deliverySteps.findIndex(step => step.id === status);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,7 +95,7 @@ const Profile: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#050505] px-4 text-center">
         <User className="w-16 h-16 text-gray-700 mb-6" />
-        <h2 className="text-3xl font-black uppercase italic tracking-tighter mb-4">يرجى تسجيل الدخول</h2>
+        <h2 className="text-3xl font-black uppercase italic mb-4">يرجى تسجيل الدخول</h2>
         <p className="text-gray-500 mb-8 max-w-md">يجب عليك تسجيل الدخول لعرض ملفك الشخصي وألعابك المملوكة.</p>
         <Link to="/login" className="bg-cyan-500 text-black px-8 py-4 rounded-xl font-black uppercase tracking-wider hover:bg-cyan-600 transition-all">
           تسجيل الدخول
@@ -111,7 +124,7 @@ const Profile: React.FC = () => {
           </div>
           
           <div className="flex-1 text-center md:text-right">
-            <h1 className="text-4xl font-black uppercase italic tracking-tighter mb-2">
+            <h1 className="text-4xl font-black uppercase italic mb-2">
               {userProfile?.displayName || 'الملف الشخصي'}
             </h1>
             <div className="flex flex-wrap justify-center md:justify-start gap-6 text-gray-400 font-medium">
@@ -120,8 +133,12 @@ const Profile: React.FC = () => {
                 {user.email}
               </div>
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-cyan-400" />
-                عضو منذ {new Date(userProfile?.createdAt || '').toLocaleDateString('ar-EG')}
+                <Sparkles className="w-4 h-4 text-yellow-400" />
+                {userProfile?.points || 0} نقطة
+              </div>
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-green-400" />
+                ${userProfile?.walletBalance || 0} رصيد المحفظة
               </div>
             </div>
           </div>
@@ -133,13 +150,21 @@ const Profile: React.FC = () => {
         </div>
       </motion.div>
 
+      <section className="mb-20">
+        <WalletManager />
+      </section>
+
+      <section className="mb-20">
+        <SteamIntegration />
+      </section>
+
       <section>
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center">
               <Gamepad2 className="text-cyan-400 w-6 h-6" />
             </div>
-            <h2 className="text-3xl font-black uppercase italic tracking-tighter">ألعابي المملوكة</h2>
+            <h2 className="text-3xl font-black uppercase italic">ألعابي المملوكة</h2>
           </div>
         </div>
 
@@ -171,7 +196,7 @@ const Profile: React.FC = () => {
                   />
                 </div>
                 <div className="p-6">
-                  <h3 className="text-xl font-black uppercase italic tracking-tighter mb-4">{game.title}</h3>
+                  <h3 className="text-xl font-black uppercase italic mb-4">{game.title}</h3>
                   <div className="flex items-center justify-between">
                     <Link
                       to={`/game/${game.id}`}
@@ -195,7 +220,7 @@ const Profile: React.FC = () => {
           <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center">
             <Package className="text-purple-400 w-6 h-6" />
           </div>
-          <h2 className="text-3xl font-black uppercase italic tracking-tighter">سجل المشتريات</h2>
+          <h2 className="text-3xl font-black uppercase italic">سجل المشتريات</h2>
         </div>
 
         {purchaseNotifications.length === 0 ? (
@@ -225,19 +250,42 @@ const Profile: React.FC = () => {
                     </div>
                     <div>
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-black text-white italic uppercase tracking-tighter">{notification.itemTitle}</h3>
+                        <h3 className="text-xl font-black text-white italic uppercase">{notification.itemTitle}</h3>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
                           notification.deliveryStatus === 'Delivered' ? 'bg-green-500/20 text-green-400' :
                           notification.deliveryStatus === 'Processing' ? 'bg-yellow-500/20 text-yellow-400' :
                           notification.deliveryStatus === 'Ready for pickup' ? 'bg-blue-500/20 text-blue-400' :
                           'bg-white/10 text-gray-400'
                         }`}>
-                          {notification.deliveryStatus || 'Pending'}
+                          {deliverySteps.find(s => s.id === notification.deliveryStatus)?.label || notification.deliveryStatus || 'Pending'}
                         </span>
                       </div>
                       <p className="text-sm text-gray-500 font-medium">
                         تم الشراء في {new Date(notification.createdAt).toLocaleDateString('ar-EG')}
                       </p>
+                      
+                      {/* Delivery Stepper Mini */}
+                      <div className="mt-4 flex items-center gap-1 max-w-[200px]">
+                        {deliverySteps.map((step, idx) => {
+                          const currentIdx = getStatusIndex(notification.deliveryStatus || 'Pending');
+                          const isActive = idx <= currentIdx;
+                          return (
+                            <React.Fragment key={step.id}>
+                              <div 
+                                className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all ${
+                                  isActive ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-white/5 border-white/10 text-gray-600'
+                                }`}
+                                title={step.label}
+                              >
+                                {step.icon}
+                              </div>
+                              {idx < deliverySteps.length - 1 && (
+                                <div className={`h-0.5 w-4 rounded-full ${isActive && idx < currentIdx ? 'bg-cyan-500' : 'bg-white/10'}`} />
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
@@ -249,7 +297,7 @@ const Profile: React.FC = () => {
                           {notification.deliveryType}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5 relative group/code">
                         {notification.deliveryType === 'Steam Key' ? (
                           <Key className="w-4 h-4 text-cyan-400" />
                         ) : notification.deliveryType === 'Steam Account' ? (
@@ -260,12 +308,28 @@ const Profile: React.FC = () => {
                         <code className="text-sm font-mono text-white flex-1 break-all">
                           {notification.deliveryDetails}
                         </code>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(notification.deliveryDetails || '');
+                            // In a real app, show a toast notification here
+                          }}
+                          className="p-2 hover:bg-white/10 rounded-lg transition-colors opacity-0 group-hover/code:opacity-100"
+                          title="نسخ الكود"
+                        >
+                          <Copy className="w-4 h-4 text-gray-400" />
+                        </button>
                       </div>
-                      {notification.deliveryInstructions && (
-                        <p className="text-[10px] text-gray-600 mt-3 italic leading-relaxed">
-                          * {notification.deliveryInstructions}
-                        </p>
-                      )}
+                      <div className="flex justify-between items-center mt-3">
+                        {notification.deliveryInstructions && (
+                          <p className="text-[10px] text-gray-600 italic leading-relaxed">
+                            * {notification.deliveryInstructions}
+                          </p>
+                        )}
+                        <button className="text-[10px] text-red-400 hover:underline flex items-center gap-1 ml-auto">
+                          <AlertCircle className="w-3 h-3" />
+                          تبليغ عن كود معطل
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -277,10 +341,52 @@ const Profile: React.FC = () => {
 
       <section className="mt-20">
         <div className="flex items-center gap-4 mb-10">
+          <div className="w-10 h-10 bg-yellow-500/10 rounded-xl flex items-center justify-center">
+            <Sparkles className="text-yellow-400 w-6 h-6" />
+          </div>
+          <h2 className="text-3xl font-black uppercase italic">برنامج الإحالة</h2>
+        </div>
+
+        <div className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 p-8 rounded-3xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-500/5 blur-[100px] -z-10" />
+          
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="max-w-xl">
+              <h3 className="text-2xl font-black text-white italic uppercase mb-4">ادعُ أصدقاءك واربح نقاطاً!</h3>
+              <p className="text-gray-400 leading-relaxed mb-6">
+                شارك كود الإحالة الخاص بك مع أصدقائك. عندما يقومون بأول عملية شراء، ستحصل على 500 نقطة وهم سيحصلون على خصم 10%.
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="bg-black/40 border border-white/10 px-6 py-3 rounded-2xl font-mono text-xl text-yellow-400 tracking-widest">
+                  {userProfile?.referralCode || 'GENERATING...'}
+                </div>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(userProfile?.referralCode || '');
+                  }}
+                  className="bg-yellow-500 hover:bg-yellow-400 text-black font-black px-6 py-3 rounded-2xl transition-all flex items-center gap-2"
+                >
+                  <Copy className="w-5 h-5" />
+                  نسخ الكود
+                </button>
+              </div>
+            </div>
+            <div className="text-center md:text-right">
+              <div className="text-5xl font-black text-white italic mb-2">
+                {userProfile?.referralPoints || 0}
+              </div>
+              <div className="text-sm font-bold text-yellow-400 uppercase tracking-widest">نقطة مكتسبة من الإحالات</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-20">
+        <div className="flex items-center gap-4 mb-10">
           <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center">
             <Heart className="text-red-400 w-6 h-6" />
           </div>
-          <h2 className="text-3xl font-black uppercase italic tracking-tighter">قائمة الأمنيات</h2>
+          <h2 className="text-3xl font-black uppercase italic">قائمة الأمنيات</h2>
         </div>
 
         {wishlistItems.length === 0 ? (
@@ -325,7 +431,7 @@ const Profile: React.FC = () => {
           <div className="w-10 h-10 bg-gray-500/10 rounded-xl flex items-center justify-center">
             <Settings className="text-gray-400 w-6 h-6" />
           </div>
-          <h2 className="text-3xl font-black uppercase italic tracking-tighter">إعدادات الحساب</h2>
+          <h2 className="text-3xl font-black uppercase italic">إعدادات الحساب</h2>
         </div>
 
         <div className="bg-white/5 border border-white/10 p-8 rounded-3xl max-w-2xl">

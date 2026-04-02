@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Gamepad2, Store, Users, Plus, Settings, ChevronRight, MessageSquare, UserPlus, Gamepad, ShoppingBag, Clock } from 'lucide-react';
+import { LayoutDashboard, Gamepad2, Store, Users, Plus, Settings, ChevronRight, MessageSquare, UserPlus, Gamepad, ShoppingBag, Clock, TrendingUp } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
+import PredictiveAnalytics from '../../components/Admin/PredictiveAnalytics';
 
 interface Activity {
   id: string;
@@ -94,10 +95,20 @@ const AdminDashboard: React.FC = () => {
           <LayoutDashboard className="text-white w-6 h-6" />
         </div>
         <div>
-          <h1 className="text-4xl font-black uppercase italic tracking-tighter">لوحة التحكم</h1>
+          <h1 className="text-4xl font-black uppercase italic">لوحة التحكم</h1>
           <p className="text-gray-500 text-sm font-medium">إدارة مخزون المتجر والمستخدمين</p>
         </div>
       </div>
+
+      <section className="mb-12">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center">
+            <TrendingUp className="text-cyan-400 w-6 h-6" />
+          </div>
+          <h2 className="text-2xl font-black uppercase italic">التحليلات التنبؤية</h2>
+        </div>
+        <PredictiveAnalytics />
+      </section>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         {statCards.map((stat, i) => (
@@ -123,7 +134,7 @@ const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <section className="bg-white/5 border border-white/10 p-8 rounded-3xl">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-black uppercase tracking-tighter italic">إجراءات سريعة</h2>
+            <h2 className="text-2xl font-black uppercase italic">إجراءات سريعة</h2>
             <Settings className="w-5 h-5 text-gray-500" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -175,12 +186,24 @@ const AdminDashboard: React.FC = () => {
               </div>
               <ChevronRight className="w-5 h-5 text-gray-500 group-hover:-translate-x-1 transition-transform rotate-180" />
             </Link>
+            <Link
+              to="/admin/users"
+              className="flex items-center justify-between p-6 bg-black/40 border border-white/5 rounded-2xl hover:border-cyan-500/50 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center">
+                  <Users className="text-cyan-400 w-5 h-5" />
+                </div>
+                <span className="font-bold">إدارة المستخدمين</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-500 group-hover:-translate-x-1 transition-transform rotate-180" />
+            </Link>
           </div>
         </section>
 
         <section className="bg-white/5 border border-white/10 p-8 rounded-3xl">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-black uppercase tracking-tighter italic">النشاط الأخير</h2>
+            <h2 className="text-2xl font-black uppercase italic">النشاط الأخير</h2>
             <div className="text-xs font-bold text-cyan-400 uppercase tracking-widest">مباشر</div>
           </div>
           <div className="space-y-4">

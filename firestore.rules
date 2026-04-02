@@ -30,7 +30,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "karmo2931@gmail.com" && request.auth.token.email_verified == true));
+          request.auth.token.email in ["karmo2931@gmail.com", "raskohilal99@gmail.com", "rea2ife@gmail.com"]);
     }
 
     function isOwner(userId) {
@@ -39,37 +39,89 @@ service cloud.firestore {
 
     function isValidGame(data) {
       return data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
-             data.description is string && data.description.size() > 0 && data.description.size() < 2000 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 5000 &&
              data.imageUrl is string && data.imageUrl.size() > 0 &&
-             data.steamUrl is string &&
+             data.steamUrl is string && data.steamUrl.size() > 0 &&
              data.ourPrice is number && data.ourPrice >= 0 &&
              data.steamPrice is number && data.steamPrice >= 0 &&
-             data.deliveryType in ['Steam Key', 'Steam Account', 'Discord Nitro', 'Other'] &&
-             data.deliveryDetails is string &&
-             data.deliveryInstructions is string &&
-             (!('deliveryStatus' in data) || data.deliveryStatus in ['Pending', 'Processing', 'Delivered', 'Ready for pickup']) &&
-             (!('stock' in data) || data.stock is number);
+             data.deliveryType in ['Steam Account', 'Steam Key', 'Discord Nitro Gift', 'Other'] &&
+             data.deliveryDetails is string && data.deliveryDetails.size() > 0 &&
+             (!('stock' in data) || data.stock is number) &&
+             (!('deliveryInstructions' in data) || data.deliveryInstructions is string);
     }
 
     function isValidProduct(data) {
       return data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
-             data.description is string && data.description.size() > 0 && data.description.size() < 2000 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 5000 &&
              data.imageUrl is string && data.imageUrl.size() > 0 &&
              data.price is number && data.price >= 0 &&
              data.category in ['Key', 'Currency', 'Subscription', 'Other'] &&
-             data.deliveryType in ['Steam Key', 'Steam Account', 'Discord Nitro', 'Other'] &&
-             data.deliveryDetails is string &&
-             data.deliveryInstructions is string &&
-             (!('deliveryStatus' in data) || data.deliveryStatus in ['Pending', 'Processing', 'Delivered', 'Ready for pickup']) &&
-             (!('stock' in data) || data.stock is number);
+             (!('stock' in data) || data.stock is number) &&
+             (!('alternativeProductId' in data) || data.alternativeProductId is string) &&
+             (!('activationVideoUrl' in data) || data.activationVideoUrl is string);
+    }
+
+    function isValidDigitalCode(data) {
+      return data.productId is string &&
+             data.code is string && data.code.size() > 0 &&
+             data.status in ['available', 'sold', 'faulty'];
     }
 
     function isValidUser(data) {
       return data.uid is string && data.email is string &&
-             data.role in ['admin', 'user'] &&
-             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 50)) &&
+             data.role in ['admin', 'user', 'vendor'] &&
+             (!('walletBalance' in data) || data.walletBalance is number) &&
+             (!('points' in data) || data.points is number) &&
+             (!('referralCode' in data) || data.referralCode is string) &&
+             (!('referredBy' in data) || data.referredBy is string) &&
+             (!('xp' in data) || data.xp is number) &&
+             (!('level' in data) || data.level is number) &&
+             (!('displayName' in data) || data.displayName is string) &&
              (!('ownedGames' in data) || data.ownedGames is list) &&
-             (!('wishlist' in data) || data.wishlist is list);
+             (!('wishlist' in data) || data.wishlist is list) &&
+             (!('notifications' in data) || data.notifications is list) &&
+             (!('subscriptions' in data) || data.subscriptions is list);
+    }
+
+    function isValidOrder(data) {
+      return data.userId == request.auth.uid &&
+             data.userEmail is string &&
+             data.items is list &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.status in ['completed', 'pending', 'failed', 'cancelled', 'refunded'] &&
+             data.createdAt is string;
+    }
+
+    function isValidReview(data) {
+      return data.productId is string &&
+             data.userId == request.auth.uid &&
+             data.userEmail is string &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() > 0 && data.comment.size() < 1000 &&
+             (!('imageUrl' in data) || data.imageUrl is string) &&
+             (!('isVerified' in data) || data.isVerified is bool);
+    }
+
+    function isValidSupportTicket(data) {
+      return data.userId == request.auth.uid &&
+             data.subject is string && data.subject.size() > 0 &&
+             data.message is string && data.message.size() > 0 &&
+             data.status in ['open', 'closed', 'resolved'];
+    }
+
+    function isValidCoupon(data) {
+      return data.code is string && data.code.size() > 0 &&
+             data.discountType in ['percentage', 'fixed'] &&
+             data.value is number && data.value > 0;
+    }
+
+    function isValidQuest(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 100 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 500 &&
+             data.target is number && data.target > 0 &&
+             data.rewardXp is number && data.rewardXp >= 0 &&
+             data.rewardCoins is number && data.rewardCoins >= 0 &&
+             data.category is string;
     }
 
     function isValidContactMessage(data) {
@@ -78,24 +130,6 @@ service cloud.firestore {
              data.subject is string && data.subject.size() > 0 &&
              data.message is string && data.message.size() > 0 &&
              data.status in ['new', 'read', 'replied'];
-    }
-
-    function isValidReview(data) {
-      return data.gameId is string &&
-             data.userId == request.auth.uid &&
-             data.userEmail is string &&
-             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
-             data.comment is string && data.comment.size() > 0 && data.comment.size() < 1000;
-    }
-
-    function isValidOrder(data) {
-      return data.userId == request.auth.uid &&
-             data.userEmail is string &&
-             data.items is list &&
-             data.totalAmount is number && data.totalAmount >= 0 &&
-             data.status in ['completed', 'pending', 'failed'] &&
-             data.paymentMethod is string &&
-             data.createdAt is string;
     }
 
     // ===============================================================
@@ -112,10 +146,25 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin() && isValidProduct(request.resource.data);
     }
 
+    match /digitalCodes/{codeId} {
+      allow read: if isAdmin(); // Only admins can see all codes
+      allow create, update, delete: if isAdmin() && isValidDigitalCode(request.resource.data);
+      // Allow user to read THEIR code if they bought it (handled via order logic or specific query)
+      // For simplicity, we'll deliver the code via the order document or a secure function
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
-      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownedGames', 'notifications', 'wishlist', 'displayName'])) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+        (request.resource.data.role == 'user' || isAdmin());
+      allow update: if (isOwner(userId) && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'ownedGames', 'wishlist', 'walletBalance', 'points', 'referralCode', 'referredBy', 
+          'subscriptions', 'notifications', 'displayName', 'xp', 'level', 'referralPoints',
+          'lockedPrices', 'steamId', 'steamProfile', 'steamGames', 'interests', 'quests'
+        ]) && 
+        isValidUser(request.resource.data)
+      ) || isAdmin();
     }
 
     match /reviews/{reviewId} {
@@ -124,15 +173,37 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
 
-    match /contact_messages/{messageId} {
-      allow read: if isAdmin();
-      allow create: if true;
-      allow update, delete: if isAdmin();
-    }
-
     match /orders/{orderId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /supportTickets/{ticketId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidSupportTicket(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true; // Anyone can check if a coupon is valid
+      allow create, update, delete: if isAdmin() && isValidCoupon(request.resource.data);
+    }
+
+    match /scheduledGifts/{giftId} {
+      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.senderId == request.auth.uid);
+    }
+
+    match /quests/{questId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() && isValidQuest(request.resource.data);
+    }
+
+    match /contact_messages/{messageId} {
+      allow read: if isAdmin();
+      allow create: if true; // Anyone can send a contact message
       allow update, delete: if isAdmin();
     }
   }

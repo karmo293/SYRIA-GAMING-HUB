@@ -53,7 +53,7 @@ const Contact: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter mb-6"
+          className="text-5xl md:text-7xl font-black uppercase italic mb-6"
         >
           نحن هنا <span className="text-cyan-500">للمساعدة</span>
         </motion.h1>
@@ -79,7 +79,7 @@ const Contact: React.FC = () => {
             <div className="w-12 h-12 bg-cyan-500 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(6,182,212,0.2)]">
               <Mail className="text-black w-6 h-6" />
             </div>
-            <h3 className="text-xl font-black uppercase italic tracking-tighter mb-2">البريد الإلكتروني</h3>
+            <h3 className="text-xl font-black uppercase italic mb-2">البريد الإلكتروني</h3>
             <p className="text-gray-400 font-medium">support@gamestore.com</p>
             <p className="text-gray-600 text-sm mt-2">نرد عادةً خلال 24 ساعة</p>
           </motion.div>
@@ -94,7 +94,7 @@ const Contact: React.FC = () => {
             <div className="w-12 h-12 bg-purple-500 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(168,85,247,0.2)]">
               <Phone className="text-black w-6 h-6" />
             </div>
-            <h3 className="text-xl font-black uppercase italic tracking-tighter mb-2">الهاتف</h3>
+            <h3 className="text-xl font-black uppercase italic mb-2">الهاتف</h3>
             <p className="text-gray-400 font-medium">+966 50 000 0000</p>
             <p className="text-gray-600 text-sm mt-2">متاح من 9 صباحاً إلى 9 مساءً</p>
           </motion.div>
@@ -109,7 +109,7 @@ const Contact: React.FC = () => {
             <div className="w-12 h-12 bg-yellow-500 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(234,179,8,0.2)]">
               <MapPin className="text-black w-6 h-6" />
             </div>
-            <h3 className="text-xl font-black uppercase italic tracking-tighter mb-2">المقر الرئيسي</h3>
+            <h3 className="text-xl font-black uppercase italic mb-2">المقر الرئيسي</h3>
             <p className="text-gray-400 font-medium">الرياض، المملكة العربية السعودية</p>
             <p className="text-gray-600 text-sm mt-2">حي الملقا، طريق الملك فهد</p>
           </motion.div>
@@ -129,7 +129,7 @@ const Contact: React.FC = () => {
                 <div className="w-20 h-20 bg-green-500/20 text-green-400 rounded-full flex items-center justify-center mx-auto mb-8">
                   <CheckCircle2 className="w-10 h-10" />
                 </div>
-                <h2 className="text-3xl font-black uppercase italic tracking-tighter mb-4">تم إرسال رسالتك!</h2>
+                <h2 className="text-3xl font-black uppercase italic mb-4">تم إرسال رسالتك!</h2>
                 <p className="text-gray-500 mb-10">شكراً لتواصلك معنا. سيقوم فريقنا بمراجعة رسالتك والرد عليك في أقرب وقت ممكن.</p>
                 <button
                   onClick={() => setSuccess(false)}

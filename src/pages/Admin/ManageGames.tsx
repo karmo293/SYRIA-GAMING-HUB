@@ -1,15 +1,45 @@
 import React, { useEffect, useState } from 'react';
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { db, auth } from '../../firebase';
 import { Game, DeliveryType } from '../../types';
-import { Plus, Trash2, Edit2, X, Save, Gamepad2, Image as ImageIcon, Link as LinkIcon, DollarSign } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Save, Gamepad2, Image as ImageIcon, Link as LinkIcon, DollarSign, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
 
 const ManageGames: React.FC = () => {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -28,14 +58,38 @@ const ManageGames: React.FC = () => {
     fetchGames();
   }, []);
 
+  const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
+    const errInfo: FirestoreErrorInfo = {
+      error: error instanceof Error ? error.message : String(error),
+      authInfo: {
+        userId: auth.currentUser?.uid,
+        email: auth.currentUser?.email,
+        emailVerified: auth.currentUser?.emailVerified,
+        isAnonymous: auth.currentUser?.isAnonymous,
+        tenantId: auth.currentUser?.tenantId,
+        providerInfo: auth.currentUser?.providerData.map(provider => ({
+          providerId: provider.providerId,
+          displayName: provider.displayName,
+          email: provider.email,
+          photoUrl: provider.photoURL
+        })) || []
+      },
+      operationType,
+      path
+    }
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+    setError(error instanceof Error ? error.message : 'حدث خطأ غير متوقع');
+  };
+
   const fetchGames = async () => {
     setLoading(true);
+    setError(null);
     try {
       const q = query(collection(db, 'games'), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
       setGames(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Game)));
     } catch (error) {
-      console.error("Error fetching games:", error);
+      handleFirestoreError(error, OperationType.GET, 'games');
     } finally {
       setLoading(false);
     }
@@ -43,6 +97,8 @@ const ManageGames: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
+    setError(null);
     try {
       const dataToSave = {
         ...formData,
@@ -75,18 +131,19 @@ const ManageGames: React.FC = () => {
       setEditingId(null);
       fetchGames();
     } catch (error) {
-      console.error("Error saving game:", error);
+      handleFirestoreError(error, editingId ? OperationType.UPDATE : OperationType.CREATE, 'games');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('هل أنت متأكد أنك تريد حذف هذه اللعبة؟')) {
-      try {
-        await deleteDoc(doc(db, 'games', id));
-        fetchGames();
-      } catch (error) {
-        console.error("Error deleting game:", error);
-      }
+    // Custom confirm logic could go here, for now we just proceed or use a simpler check
+    try {
+      await deleteDoc(doc(db, 'games', id));
+      fetchGames();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `games/${id}`);
     }
   };
 
@@ -115,7 +172,7 @@ const ManageGames: React.FC = () => {
             <Gamepad2 className="text-cyan-400 w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-4xl font-black uppercase italic tracking-tighter">إدارة الألعاب</h1>
+            <h1 className="text-4xl font-black uppercase italic">إدارة الألعاب</h1>
             <p className="text-gray-500 text-sm font-medium">إضافة، تعديل، أو حذف الألعاب من المكتبة</p>
           </div>
         </div>
@@ -152,13 +209,20 @@ const ManageGames: React.FC = () => {
           >
             <div className="bg-[#111] border border-white/10 p-8 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
               <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-black uppercase tracking-tighter italic">
+                <h2 className="text-2xl font-black uppercase italic">
                   {editingId ? 'تعديل اللعبة' : 'إضافة لعبة جديدة'}
                 </h2>
                 <button onClick={() => setIsAdding(false)} className="text-gray-500 hover:text-white transition-colors">
                   <X className="w-6 h-6" />
                 </button>
               </div>
+
+              {error && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <p>{error}</p>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -305,9 +369,15 @@ const ManageGames: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="w-full bg-cyan-500 hover:bg-cyan-600 text-black py-4 rounded-xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
+                  disabled={saving}
+                  className="w-full bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed text-black py-4 rounded-xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
                 >
-                  <Save className="w-5 h-5" /> {editingId ? 'تحديث اللعبة' : 'حفظ اللعبة'}
+                  {saving ? (
+                    <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-5 h-5" />
+                  )}
+                  {editingId ? 'تحديث اللعبة' : 'حفظ اللعبة'}
                 </button>
               </form>
             </div>

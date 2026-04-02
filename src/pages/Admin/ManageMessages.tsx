@@ -65,7 +65,7 @@ const ManageMessages: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
         <div>
-          <h1 className="text-4xl font-black uppercase italic tracking-tighter mb-2">إدارة الرسائل</h1>
+          <h1 className="text-4xl font-black uppercase italic mb-2">إدارة الرسائل</h1>
           <p className="text-gray-500">عرض وإدارة استفسارات العملاء ورسائل التواصل.</p>
         </div>
         
@@ -121,7 +121,7 @@ const ManageMessages: React.FC = () => {
                       <Mail className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-black text-white italic uppercase tracking-tighter">{msg.subject}</h3>
+                      <h3 className="text-xl font-black text-white italic uppercase">{msg.subject}</h3>
                       <div className="flex items-center gap-3 text-xs text-gray-500 font-medium mt-1">
                         <span className="flex items-center gap-1"><User className="w-3 h-3" /> {msg.name}</span>
                         <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {msg.email}</span>
@@ -173,7 +173,7 @@ const ManageMessages: React.FC = () => {
         {filteredMessages.length === 0 && (
           <div className="bg-white/5 border border-white/10 p-20 rounded-[40px] text-center">
             <MessageSquare className="w-16 h-16 text-gray-700 mx-auto mb-6" />
-            <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-2">لا توجد رسائل</h3>
+            <h3 className="text-2xl font-black uppercase italic mb-2">لا توجد رسائل</h3>
             <p className="text-gray-500">لم يتم العثور على أي رسائل تطابق معايير البحث.</p>
           </div>
         )}

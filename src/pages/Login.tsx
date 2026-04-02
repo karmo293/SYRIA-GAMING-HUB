@@ -41,10 +41,11 @@ const Login: React.FC = () => {
         const user = userCredential.user;
 
         // Create user profile
+        const isAdminEmail = user.email === 'karmo2931@gmail.com' || user.email === 'raskohilal99@gmail.com' || user.email === 'rea2ife@gmail.com';
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email,
-          role: 'user',
+          role: isAdminEmail ? 'admin' : 'user',
           createdAt: new Date().toISOString(),
           ownedGames: [],
           wishlist: [],
@@ -68,10 +69,11 @@ const Login: React.FC = () => {
       // Check if profile exists
       const docSnap = await getDoc(doc(db, 'users', user.uid));
       if (!docSnap.exists()) {
+        const isAdminEmail = user.email === 'karmo2931@gmail.com' || user.email === 'raskohilal99@gmail.com' || user.email === 'rea2ife@gmail.com';
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email,
-          role: 'user',
+          role: isAdminEmail ? 'admin' : 'user',
           createdAt: new Date().toISOString(),
           ownedGames: [],
           wishlist: [],
@@ -95,7 +97,7 @@ const Login: React.FC = () => {
           <div className="w-16 h-16 bg-cyan-500 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(6,182,212,0.5)]">
             <Gamepad2 className="text-black w-8 h-8" />
           </div>
-          <h2 className="text-3xl font-black uppercase tracking-tighter italic">
+          <h2 className="text-3xl font-black uppercase italic">
             {isForgotPassword ? 'إعادة تعيين كلمة المرور' : isLogin ? 'مرحباً بك مجدداً' : 'إنشاء حساب جديد'}
           </h2>
           <p className="text-gray-500 text-sm font-medium mt-2">

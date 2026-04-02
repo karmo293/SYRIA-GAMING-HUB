@@ -21,7 +21,7 @@ export interface Game {
 
 export interface Product {
   id: string;
-  gameId: string;
+  gameId?: string;
   title: string;
   description: string;
   imageUrl: string;
@@ -35,6 +35,12 @@ export interface Product {
   deliveryInstructions?: string;
   deliveryStatus?: DeliveryStatus;
   stock?: number;
+  alternativeProductId?: string;
+  activationVideoUrl?: string;
+  bundleInfo?: {
+    items: string[];
+    discount: number;
+  };
 }
 
 export interface Notification {
@@ -51,17 +57,67 @@ export interface Notification {
   deliveryDetails?: string;
   deliveryInstructions?: string;
   deliveryStatus?: DeliveryStatus;
+  metadata?: any;
 }
 
 export interface UserProfile {
   uid: string;
   email: string;
   displayName?: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'vendor';
   createdAt: string;
   ownedGames?: string[];
   wishlist?: string[];
   notifications?: Notification[];
+  walletBalance?: number;
+  points?: number;
+  referralCode?: string;
+  referredBy?: string;
+  referralPoints?: number;
+  xp?: number;
+  level?: number;
+  lastLogin?: string;
+  lockedPrices?: {
+    itemId: string;
+    price: number;
+    expiresAt: string;
+  }[];
+  steamId?: string;
+  steamProfile?: any;
+  steamGames?: any[];
+  interests?: string[];
+  quests?: {
+    id: string;
+    progress: number;
+    completed: boolean;
+  }[];
+  subscriptions?: {
+    productId: string;
+    startDate: string;
+    nextBillingDate: string;
+    status: 'active' | 'cancelled' | 'expired';
+  }[];
+}
+
+export interface ScheduledGift {
+  id: string;
+  senderId: string;
+  recipientName: string;
+  recipientContact: string; // WhatsApp or Email
+  productId: string;
+  message: string;
+  scheduledDate: string;
+  status: 'pending' | 'sent';
+}
+
+export interface Quest {
+  id: string;
+  title: string;
+  description: string;
+  target: number;
+  rewardXp: number;
+  rewardCoins: number;
+  category: string;
 }
 
 export interface ContactMessage {
@@ -76,11 +132,13 @@ export interface ContactMessage {
 
 export interface Review {
   id: string;
-  gameId: string;
+  productId: string;
   userId: string;
   userEmail: string;
   rating: number;
   comment: string;
+  imageUrl?: string;
+  isVerified?: boolean;
   createdAt: string;
 }
 
@@ -99,7 +157,17 @@ export interface Order {
   userEmail: string;
   items: CartItem[];
   totalAmount: number;
-  status: 'completed' | 'pending' | 'failed';
+  status: 'completed' | 'pending' | 'failed' | 'cancelled' | 'refunded';
   paymentMethod: string;
   createdAt: string;
+  deliveryStatus?: DeliveryStatus;
+  deliveryType?: DeliveryType;
+  deliveryDetails?: string;
+  deliveryInstructions?: string;
+  warrantyLog?: {
+    action: string;
+    timestamp: string;
+    ip?: string;
+    userAgent?: string;
+  }[];
 }

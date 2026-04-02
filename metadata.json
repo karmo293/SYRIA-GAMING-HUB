@@ -1,5 +1,5 @@
 {
   "name": "SYRIA GAMING HUB",
   "description": "A professional store for digital products, games, and keys with a modern gaming UI.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["microphone"]
 }

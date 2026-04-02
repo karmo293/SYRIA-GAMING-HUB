@@ -1,9 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { db, auth } from '../../firebase';
 import { Product, Game, DeliveryType } from '../../types';
-import { Plus, Trash2, Edit2, X, Save, Store, Image as ImageIcon, Tag, DollarSign, Package } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Save, Store, Image as ImageIcon, Tag, DollarSign, Package, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
 
 const ManageProducts: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -11,6 +39,8 @@ const ManageProducts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -29,8 +59,32 @@ const ManageProducts: React.FC = () => {
     fetchData();
   }, []);
 
+  const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
+    const errInfo: FirestoreErrorInfo = {
+      error: error instanceof Error ? error.message : String(error),
+      authInfo: {
+        userId: auth.currentUser?.uid,
+        email: auth.currentUser?.email,
+        emailVerified: auth.currentUser?.emailVerified,
+        isAnonymous: auth.currentUser?.isAnonymous,
+        tenantId: auth.currentUser?.tenantId,
+        providerInfo: auth.currentUser?.providerData.map(provider => ({
+          providerId: provider.providerId,
+          displayName: provider.displayName,
+          email: provider.email,
+          photoUrl: provider.photoURL
+        })) || []
+      },
+      operationType,
+      path
+    }
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+    setError(error instanceof Error ? error.message : 'حدث خطأ غير متوقع');
+  };
+
   const fetchData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const pQ = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
       const pSnap = await getDocs(pQ);
@@ -39,7 +93,7 @@ const ManageProducts: React.FC = () => {
       const gSnap = await getDocs(collection(db, 'games'));
       setGames(gSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Game)));
     } catch (error) {
-      console.error("Error fetching data:", error);
+      handleFirestoreError(error, OperationType.GET, 'products');
     } finally {
       setLoading(false);
     }
@@ -47,6 +101,8 @@ const ManageProducts: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
+    setError(null);
     try {
       const dataToSave = {
         ...formData,
@@ -78,18 +134,18 @@ const ManageProducts: React.FC = () => {
       setEditingId(null);
       fetchData();
     } catch (error) {
-      console.error("Error saving product:", error);
+      handleFirestoreError(error, editingId ? OperationType.UPDATE : OperationType.CREATE, 'products');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('هل أنت متأكد أنك تريد حذف هذا المنتج؟')) {
-      try {
-        await deleteDoc(doc(db, 'products', id));
-        fetchData();
-      } catch (error) {
-        console.error("Error deleting product:", error);
-      }
+    try {
+      await deleteDoc(doc(db, 'products', id));
+      fetchData();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
     }
   };
 
@@ -118,7 +174,7 @@ const ManageProducts: React.FC = () => {
             <Store className="text-purple-400 w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-4xl font-black uppercase italic tracking-tighter">إدارة المنتجات</h1>
+            <h1 className="text-4xl font-black uppercase italic">إدارة المنتجات</h1>
             <p className="text-gray-500 text-sm font-medium">إدارة المفاتيح، العملات، والسلع الرقمية الأخرى</p>
           </div>
         </div>
@@ -155,13 +211,20 @@ const ManageProducts: React.FC = () => {
           >
             <div className="bg-[#111] border border-white/10 p-8 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
               <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-black uppercase tracking-tighter italic">
+                <h2 className="text-2xl font-black uppercase italic">
                   {editingId ? 'تعديل المنتج' : 'إضافة منتج جديد'}
                 </h2>
                 <button onClick={() => setIsAdding(false)} className="text-gray-500 hover:text-white transition-colors">
                   <X className="w-6 h-6" />
                 </button>
               </div>
+
+              {error && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <p>{error}</p>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -312,9 +375,15 @@ const ManageProducts: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="w-full bg-purple-500 hover:bg-purple-600 text-black py-4 rounded-xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
+                  disabled={saving}
+                  className="w-full bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-black py-4 rounded-xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
                 >
-                  <Save className="w-5 h-5" /> {editingId ? 'تحديث المنتج' : 'حفظ المنتج'}
+                  {saving ? (
+                    <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-5 h-5" />
+                  )}
+                  {editingId ? 'تحديث المنتج' : 'حفظ المنتج'}
                 </button>
               </form>
             </div>

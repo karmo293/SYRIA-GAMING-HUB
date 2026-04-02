@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ShoppingCart, CheckCircle2, CreditCard, Calendar, Lock, Loader2, Package } from 'lucide-react';
+import { X, ShoppingCart, CheckCircle2, CreditCard, Calendar, Lock, Loader2, Package, Coins } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { doc, arrayUnion, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Notification, DeliveryType } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { cn } from '../lib/utils';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -25,17 +26,29 @@ const generateId = () => {
 };
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, itemTitle, itemType = 'game', isCart }) => {
-  const { user } = useAuth();
+  const { user, userProfile, updateWallet } = useAuth();
   const { cartItems, clearCart, totalPrice } = useCart();
-  const [step, setStep] = useState<'form' | 'processing' | 'success'>('form');
+  const [step, setStep] = useState<'form' | 'confirm' | 'processing' | 'success'>('form');
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet'>('card');
   const [formData, setFormData] = useState({
     cardNumber: '',
     expiry: '',
     cvv: ''
   });
+  const [verificationCode, setVerificationCode] = useState('');
+  const [userInputCode, setUserInputCode] = useState('');
+  const [generatedCode] = useState(() => Math.floor(1000 + Math.random() * 9000).toString());
 
-  const handlePurchase = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleProceedToConfirm = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setStep('confirm');
+  };
+
+  const handlePurchase = async () => {
+    if (userInputCode !== generatedCode) {
+      alert('كود التأكيد غير صحيح. يرجى المحاولة مرة أخرى.');
+      return;
+    }
     if (!user) {
       console.warn("Purchase attempted without user session");
       return;
@@ -46,12 +59,21 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
     }
     
     setStep('processing');
-    console.log("Processing purchase...", { isCart, itemId, itemTitle, itemType });
+    console.log("Processing purchase...", { isCart, itemId, itemTitle, itemType, paymentMethod });
     
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     try {
+      const price = isCart ? totalPrice : 0; // Need to handle single item price properly if not cart
+      
+      if (paymentMethod === 'wallet') {
+        if ((userProfile?.walletBalance || 0) < price) {
+          throw new Error('رصيدك غير كافٍ في المحفظة');
+        }
+        await updateWallet(-price);
+      }
+
       const userRef = doc(db, 'users', user.uid);
       const notifications: Notification[] = [];
       const timestamp = new Date().toISOString();
@@ -114,6 +136,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
 
         // Create Order document
         try {
+          // Use the first item's delivery info for the order (simplification)
+          const firstItemNotification = notifications[0];
           await setDoc(doc(db, 'orders', orderId), {
             id: orderId,
             userId: user.uid,
@@ -121,8 +145,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
             items: cartItems,
             totalAmount: totalPrice,
             status: 'completed',
-            paymentMethod: 'Credit Card',
-            createdAt: timestamp
+            paymentMethod: paymentMethod === 'card' ? 'Credit Card' : 'Wallet',
+            createdAt: timestamp,
+            deliveryStatus: 'Pending',
+            deliveryType: firstItemNotification?.deliveryType || 'Other',
+            deliveryDetails: firstItemNotification?.deliveryDetails || '',
+            deliveryInstructions: firstItemNotification?.deliveryInstructions || ''
           });
         } catch (err) {
           handleFirestoreError(err, OperationType.WRITE, `orders/${orderId}`);
@@ -143,6 +171,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
         
         if (itemDoc.exists()) {
           const data = itemDoc.data();
+          const itemPrice = data.ourPrice || data.price || 0;
+
+          if (paymentMethod === 'wallet' && (userProfile?.walletBalance || 0) < itemPrice) {
+             throw new Error('رصيدك غير كافٍ في المحفظة');
+          }
+
           const notification: Notification = {
             id: generateId(),
             userId: user.uid,
@@ -183,15 +217,19 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
               items: [{
                 id: itemId,
                 title: itemTitle || '',
-                price: data.ourPrice || data.price || 0,
+                price: itemPrice,
                 imageUrl: data.imageUrl || '',
                 type: itemType,
                 quantity: 1
               }],
-              totalAmount: data.ourPrice || data.price || 0,
+              totalAmount: itemPrice,
               status: 'completed',
-              paymentMethod: 'Credit Card',
-              createdAt: timestamp
+              paymentMethod: paymentMethod === 'card' ? 'Credit Card' : 'Wallet',
+              createdAt: timestamp,
+              deliveryStatus: 'Pending',
+              deliveryType: data.deliveryType || 'Other',
+              deliveryDetails: data.deliveryDetails || '',
+              deliveryInstructions: data.deliveryInstructions || ''
             });
           } catch (err) {
             handleFirestoreError(err, OperationType.WRITE, `orders/${orderId}`);
@@ -205,9 +243,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
     } catch (error) {
       console.error("Error during purchase simulation:", error);
       setStep('form');
-      // If it's already a JSON string from handleFirestoreError, we don't want to alert it directly
-      // but the handleFirestoreError throws an Error with JSON string.
-      alert('حدث خطأ أثناء معالجة العملية. يرجى المحاولة مرة أخرى.');
+      alert(error instanceof Error ? error.message : 'حدث خطأ أثناء معالجة العملية. يرجى المحاولة مرة أخرى.');
     }
   };
 
@@ -250,7 +286,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
                   <div className="w-20 h-20 bg-cyan-500/10 rounded-[2rem] flex items-center justify-center mb-8 mx-auto border border-cyan-500/30">
                     <Lock className="text-cyan-400 w-10 h-10" />
                   </div>
-                  <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-4">تسجيل الدخول مطلوب</h3>
+                  <h3 className="text-2xl font-black uppercase italic mb-4">تسجيل الدخول مطلوب</h3>
                   <p className="text-gray-400 mb-8">يجب عليك تسجيل الدخول لإتمام عملية الشراء.</p>
                   <a
                     href="/login"
@@ -259,7 +295,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
                     تسجيل الدخول
                   </a>
                 </div>
-              ) : step === 'form' && (
+              ) : step === 'form' ? (
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -288,68 +324,153 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
                     )}
                   </div>
 
-                  <form onSubmit={handlePurchase} className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mr-1">رقم البطاقة</label>
-                      <div className="relative">
-                        <CreditCard className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 w-5 h-5" />
-                        <input
-                          type="text"
-                          required
-                          placeholder="0000 0000 0000 0000"
-                          value={formData.cardNumber}
-                          onChange={e => setFormData({...formData, cardNumber: e.target.value})}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pr-12 pl-4 text-white focus:border-cyan-500 outline-none transition-all text-right font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mr-1">تاريخ الانتهاء</label>
-                        <div className="relative">
-                          <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 w-5 h-5" />
-                          <input
-                            type="text"
-                            required
-                            placeholder="MM/YY"
-                            value={formData.expiry}
-                            onChange={e => setFormData({...formData, expiry: e.target.value})}
-                            className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pr-12 pl-4 text-white focus:border-cyan-500 outline-none transition-all text-right font-mono"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mr-1">CVV</label>
-                        <div className="relative">
-                          <Lock className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 w-5 h-5" />
-                          <input
-                            type="text"
-                            required
-                            placeholder="123"
-                            value={formData.cvv}
-                            onChange={e => setFormData({...formData, cvv: e.target.value})}
-                            className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pr-12 pl-4 text-white focus:border-cyan-500 outline-none transition-all text-right font-mono"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
+                  <div className="flex gap-4 mb-8">
                     <button
-                      type="submit"
-                      className="w-full bg-cyan-500 hover:bg-cyan-600 text-black py-5 rounded-2xl font-black uppercase tracking-wider text-lg mt-4 transition-all hover:shadow-[0_0_30px_rgba(6,182,212,0.4)]"
+                      type="button"
+                      onClick={() => setPaymentMethod('card')}
+                      className={cn(
+                        "flex-1 p-4 rounded-2xl border transition-all flex flex-col items-center gap-2",
+                        paymentMethod === 'card' 
+                          ? "bg-cyan-500/10 border-cyan-500 text-cyan-400" 
+                          : "bg-white/5 border-white/10 text-gray-500"
+                      )}
                     >
-                      إتمام عملية الشراء
+                      <CreditCard className="w-6 h-6" />
+                      <span className="text-[10px] font-black uppercase">بطاقة ائتمان</span>
                     </button>
-                  </form>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('wallet')}
+                      className={cn(
+                        "flex-1 p-4 rounded-2xl border transition-all flex flex-col items-center gap-2",
+                        paymentMethod === 'wallet' 
+                          ? "bg-yellow-500/10 border-yellow-500 text-yellow-400" 
+                          : "bg-white/5 border-white/10 text-gray-500"
+                      )}
+                    >
+                      <Coins className="w-6 h-6" />
+                      <span className="text-[10px] font-black uppercase">محفظة الألعاب</span>
+                    </button>
+                  </div>
+
+                  {paymentMethod === 'card' ? (
+                    <form onSubmit={handleProceedToConfirm} className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mr-1">رقم البطاقة</label>
+                        <div className="relative">
+                          <CreditCard className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 w-5 h-5" />
+                          <input
+                            type="text"
+                            required
+                            placeholder="0000 0000 0000 0000"
+                            value={formData.cardNumber}
+                            onChange={e => setFormData({...formData, cardNumber: e.target.value})}
+                            className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pr-12 pl-4 text-white focus:border-cyan-500 outline-none transition-all text-right font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mr-1">تاريخ الانتهاء</label>
+                          <div className="relative">
+                            <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 w-5 h-5" />
+                            <input
+                              type="text"
+                              required
+                              placeholder="MM/YY"
+                              value={formData.expiry}
+                              onChange={e => setFormData({...formData, expiry: e.target.value})}
+                              className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pr-12 pl-4 text-white focus:border-cyan-500 outline-none transition-all text-right font-mono"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mr-1">CVV</label>
+                          <div className="relative">
+                            <Lock className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 w-5 h-5" />
+                            <input
+                              type="text"
+                              required
+                              placeholder="123"
+                              value={formData.cvv}
+                              onChange={e => setFormData({...formData, cvv: e.target.value})}
+                              className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pr-12 pl-4 text-white focus:border-cyan-500 outline-none transition-all text-right font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-black py-5 rounded-2xl font-black uppercase tracking-wider text-lg mt-4 transition-all hover:shadow-[0_0_30px_rgba(6,182,212,0.4)]"
+                      >
+                        إتمام عملية الشراء
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 p-6 rounded-3xl text-center">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">رصيدك الحالي</span>
+                        <span className="text-3xl font-black text-yellow-400">${(userProfile?.walletBalance || 0).toFixed(2)}</span>
+                      </div>
+                      
+                      <button
+                        onClick={() => handleProceedToConfirm()}
+                        disabled={(userProfile?.walletBalance || 0) < (isCart ? totalPrice : 0)}
+                        className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-700 disabled:text-gray-500 text-black py-5 rounded-2xl font-black uppercase tracking-wider text-lg transition-all hover:shadow-[0_0_30px_rgba(234,179,8,0.4)]"
+                      >
+                        {(userProfile?.walletBalance || 0) < (isCart ? totalPrice : 0) ? 'رصيد غير كافٍ' : 'متابعة الشراء من المحفظة'}
+                      </button>
+                    </div>
+                  )}
                   
                   <p className="text-[10px] text-center text-gray-600 mt-6 uppercase font-bold tracking-widest">
                     هذه واجهة تجريبية فقط. لن يتم خصم أي مبالغ حقيقية.
                   </p>
                 </motion.div>
-              )}
+              ) : step === 'confirm' ? (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-center"
+                >
+                  <div className="w-20 h-20 bg-yellow-500/10 rounded-[2rem] flex items-center justify-center mb-8 mx-auto border border-yellow-500/30">
+                    <Lock className="text-yellow-400 w-10 h-10" />
+                  </div>
+                  <h3 className="text-2xl font-black uppercase italic mb-4">كود التأكيد مطلوب</h3>
+                  <p className="text-gray-400 mb-8">يرجى إدخال كود التأكيد التالي لإتمام العملية:</p>
+                  
+                  <div className="bg-white/5 border border-white/10 p-6 rounded-3xl mb-8">
+                    <span className="text-4xl font-black tracking-[0.5em] text-cyan-400 font-mono">{generatedCode}</span>
+                  </div>
 
-              {step === 'processing' && (
+                  <div className="space-y-4">
+                    <input
+                      type="text"
+                      maxLength={4}
+                      placeholder="أدخل الكود هنا"
+                      value={userInputCode}
+                      onChange={e => setUserInputCode(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl py-4 text-center text-2xl font-black tracking-[0.5em] text-white focus:border-cyan-500 outline-none transition-all font-mono"
+                    />
+                    
+                    <button
+                      onClick={() => handlePurchase()}
+                      className="w-full bg-cyan-500 hover:bg-cyan-600 text-black py-5 rounded-2xl font-black uppercase tracking-wider text-lg transition-all hover:shadow-[0_0_30px_rgba(6,182,212,0.4)]"
+                    >
+                      تأكيد وإتمام الشراء
+                    </button>
+                    
+                    <button
+                      onClick={() => setStep('form')}
+                      className="w-full bg-white/5 hover:bg-white/10 text-white py-4 rounded-2xl font-bold uppercase tracking-wider transition-all border border-white/10"
+                    >
+                      رجوع
+                    </button>
+                  </div>
+                </motion.div>
+              ) : step === 'processing' ? (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -359,12 +480,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
                     <div className="w-24 h-24 border-4 border-cyan-500/20 rounded-full" />
                     <Loader2 className="w-24 h-24 text-cyan-500 absolute top-0 left-0 animate-spin" />
                   </div>
-                  <h3 className="text-2xl font-black uppercase italic tracking-tighter mt-8 mb-2">جاري المعالجة</h3>
+                  <h3 className="text-2xl font-black uppercase italic mt-8 mb-2">جاري المعالجة</h3>
                   <p className="text-gray-500 font-medium">يرجى الانتظار، نقوم بتأمين طلبك...</p>
                 </motion.div>
-              )}
-
-              {step === 'success' && (
+              ) : (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -373,7 +492,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
                   <div className="w-20 h-20 bg-green-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-green-500/30">
                     <CheckCircle2 className="text-green-400 w-10 h-10" />
                   </div>
-                  <h3 className="text-3xl font-black uppercase italic tracking-tighter mb-4">تم الشراء بنجاح!</h3>
+                  <h3 className="text-3xl font-black uppercase italic mb-4">تم الشراء بنجاح!</h3>
                   <p className="text-gray-400 text-center leading-relaxed mb-10 px-4">
                     {isCart ? (
                       <>تهانينا! تمت معالجة طلبك بنجاح. ستجد الألعاب الجديدة في مكتبتك.</>

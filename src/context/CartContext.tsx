@@ -9,6 +9,10 @@ interface CartContextType {
   clearCart: () => void;
   totalPrice: number;
   itemCount: number;
+  pointsEarned: number;
+  applyCoupon: (code: string) => Promise<boolean>;
+  discount: number;
+  activeCoupon: string | null;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -18,6 +22,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedCart = localStorage.getItem('cart');
     return savedCart ? JSON.parse(savedCart) : [];
   });
+  const [discount, setDiscount] = useState(0);
+  const [activeCoupon, setActiveCoupon] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cartItems));
@@ -47,10 +53,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearCart = () => {
     setCartItems([]);
+    setDiscount(0);
+    setActiveCoupon(null);
   };
 
-  const totalPrice = cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
+  const applyCoupon = async (code: string) => {
+    // In a real app, fetch from Firestore
+    if (code === 'WELCOME10') {
+      setDiscount(10);
+      setActiveCoupon(code);
+      return true;
+    }
+    return false;
+  };
+
+  const rawTotalPrice = cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
+  const totalPrice = Math.max(0, rawTotalPrice - discount);
   const itemCount = cartItems.reduce((count, item) => count + item.quantity, 0);
+  const pointsEarned = Math.floor(totalPrice * 10); // 10 points per dollar
 
   return (
     <CartContext.Provider value={{
@@ -60,7 +80,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateQuantity,
       clearCart,
       totalPrice,
-      itemCount
+      itemCount,
+      pointsEarned,
+      applyCoupon,
+      discount,
+      activeCoupon
     }}>
       {children}
     </CartContext.Provider>

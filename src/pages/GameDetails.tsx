@@ -4,22 +4,29 @@ import { doc, getDoc, collection, query, where, getDocs, addDoc, orderBy, onSnap
 import { motion } from 'motion/react';
 import { db } from '../firebase';
 import { Game, Product, Review } from '../types';
-import { ExternalLink, TrendingDown, ShoppingCart, Tag, ChevronRight, Star, MessageSquare, Send, User, CreditCard, Heart } from 'lucide-react';
+import { ExternalLink, TrendingDown, ShoppingCart, Tag, ChevronRight, Star, MessageSquare, Send, User, CreditCard, Heart, Monitor } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
 import ProductCard from '../components/ProductCard';
+import HardwareChecker from '../components/HardwareChecker';
+import PriceProtection from '../components/PriceProtection';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { cn } from '../lib/utils';
+import { usePersonalization } from '../hooks/usePersonalization';
 
 const GameDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user, userProfile, toggleWishlist } = useAuth();
   const { addToCart } = useCart();
+  const { trackInteraction } = usePersonalization();
   const [game, setGame] = useState<Game | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showBuyConfirm, setShowBuyConfirm] = useState(false);
+  const [showCartConfirm, setShowCartConfirm] = useState(false);
   
   // Review form state
   const [rating, setRating] = useState(5);
@@ -32,7 +39,9 @@ const GameDetails: React.FC = () => {
       try {
         const gameSnap = await getDoc(doc(db, 'games', id));
         if (gameSnap.exists()) {
-          setGame({ id: gameSnap.id, ...gameSnap.data() } as Game);
+          const gameData = { id: gameSnap.id, ...gameSnap.data() } as Game;
+          setGame(gameData);
+          trackInteraction(id, 'game');
 
           const productsSnap = await getDocs(query(collection(db, 'products'), where('gameId', '==', id)));
           setProducts(productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
@@ -144,7 +153,7 @@ const GameDetails: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <h1 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter mb-6 leading-none">
+            <h1 className="text-5xl md:text-7xl font-black uppercase italic mb-6 leading-none">
               {game.title}
             </h1>
 
@@ -168,6 +177,12 @@ const GameDetails: React.FC = () => {
               </p>
             </div>
 
+            <PriceProtection 
+              itemId={game.id} 
+              itemTitle={game.title} 
+              currentPrice={game.ourPrice} 
+            />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
               <div className="bg-white/5 border border-white/10 p-6 rounded-2xl">
                 <span className="text-sm text-gray-500 font-bold uppercase tracking-widest block mb-2">سعرنا</span>
@@ -179,7 +194,7 @@ const GameDetails: React.FC = () => {
               <div className="flex flex-col gap-3">
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => setShowBuyConfirm(true)}
                     className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-black py-4 rounded-2xl font-black uppercase tracking-wider text-lg flex items-center justify-center gap-3 transition-all hover:shadow-[0_0_30px_rgba(6,182,212,0.4)]"
                   >
                     <CreditCard className="w-6 h-6" /> شراء الآن
@@ -197,14 +212,7 @@ const GameDetails: React.FC = () => {
                   </button>
                 </div>
                 <button
-                  onClick={() => addToCart({
-                    id: game.id,
-                    title: game.title,
-                    price: game.ourPrice,
-                    imageUrl: game.imageUrl,
-                    type: 'game',
-                    quantity: 1
-                  })}
+                  onClick={() => setShowCartConfirm(true)}
                   className="w-full bg-white/5 hover:bg-white/10 text-white py-4 rounded-2xl font-black uppercase tracking-wider text-lg flex items-center justify-center gap-3 transition-all border border-white/10"
                 >
                   <ShoppingCart className="w-6 h-6" /> إضافة للسلة
@@ -239,10 +247,12 @@ const GameDetails: React.FC = () => {
               href={game.steamUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors font-bold uppercase tracking-widest text-xs"
+              className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors font-bold uppercase tracking-widest text-xs mb-12"
             >
               عرض على Steam <ExternalLink className="w-4 h-4" />
             </a>
+
+            <HardwareChecker gameTitle={game.title} />
           </motion.div>
         </div>
       </div>
@@ -255,7 +265,7 @@ const GameDetails: React.FC = () => {
               <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center">
                 <MessageSquare className="text-cyan-400 w-6 h-6" />
               </div>
-              <h2 className="text-3xl font-black uppercase italic tracking-tighter">آراء اللاعبين</h2>
+              <h2 className="text-3xl font-black uppercase italic">آراء اللاعبين</h2>
             </div>
 
             {user ? (
@@ -351,7 +361,7 @@ const GameDetails: React.FC = () => {
             <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center">
               <Tag className="text-purple-400 w-6 h-6" />
             </div>
-            <h2 className="text-3xl font-black uppercase italic tracking-tighter">منتجات ذات صلة</h2>
+            <h2 className="text-3xl font-black uppercase italic">منتجات ذات صلة</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {products.map(product => (
@@ -367,6 +377,33 @@ const GameDetails: React.FC = () => {
         itemId={game.id}
         itemTitle={game.title}
         itemType="game"
+      />
+
+      <ConfirmationModal
+        isOpen={showBuyConfirm}
+        onClose={() => setShowBuyConfirm(false)}
+        onConfirm={() => setIsModalOpen(true)}
+        title="تأكيد الشراء"
+        message={`هل أنت متأكد من رغبتك في شراء "${game.title}" الآن؟`}
+        confirmText="نعم، شراء"
+        cancelText="إلغاء"
+      />
+
+      <ConfirmationModal
+        isOpen={showCartConfirm}
+        onClose={() => setShowCartConfirm(false)}
+        onConfirm={() => addToCart({
+          id: game.id,
+          title: game.title,
+          price: game.ourPrice,
+          imageUrl: game.imageUrl,
+          type: 'game',
+          quantity: 1
+        })}
+        title="تأكيد الإضافة"
+        message={`هل تريد إضافة "${game.title}" إلى سلة التسوق؟`}
+        confirmText="نعم، أضف"
+        cancelText="إلغاء"
       />
     </div>
   );

@@ -5,12 +5,16 @@ import { Link } from 'react-router-dom';
 import { db } from '../firebase';
 import { Game, Product } from '../types';
 import Hero from '../components/Hero';
+import DailyMissions from '../components/DailyMissions';
 import ProductCard from '../components/ProductCard';
-import { Gamepad2, Store, TrendingUp } from 'lucide-react';
+import { Gamepad2, Store, TrendingUp, Sparkles } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Home: React.FC = () => {
+  const { userProfile } = useAuth();
   const [games, setGames] = useState<Game[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [recommended, setRecommended] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,7 +24,14 @@ const Home: React.FC = () => {
         const productsSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(8)));
 
         setGames(gamesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Game)));
-        setProducts(productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+        const productsData = productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+        setProducts(productsData);
+
+        // Simple recommendation logic based on interests
+        if (userProfile?.interests && userProfile.interests.length > 0) {
+          const recs = productsData.filter(p => userProfile.interests?.includes(p.category)).slice(0, 4);
+          setRecommended(recs);
+        }
       } catch (error) {
         console.error("Error fetching home data:", error);
       } finally {
@@ -36,15 +47,37 @@ const Home: React.FC = () => {
       <Hero />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        {/* Recommended Section */}
+        {recommended.length > 0 && (
+          <section className="mb-24">
+            <div className="flex flex-col items-center text-center mb-12">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 bg-cyan-500/10 rounded-2xl flex items-center justify-center border border-cyan-500/30">
+                  <Sparkles className="text-cyan-400 w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black uppercase italic">مقترح لك</h2>
+                  <p className="text-gray-500 text-sm font-medium">بناءً على اهتماماتك السابقة</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {recommended.map(item => (
+                <ProductCard key={item.id} item={item} type="product" />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Featured Games Section */}
         <section className="mb-24">
-          <div className="flex items-center justify-between mb-12">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col items-center text-center mb-12">
+            <div className="flex flex-col items-center gap-4 mb-6">
               <div className="w-12 h-12 bg-cyan-500/10 rounded-2xl flex items-center justify-center border border-cyan-500/30">
                 <Gamepad2 className="text-cyan-400 w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-3xl font-black uppercase italic tracking-tighter">ألعاب مميزة</h2>
+                <h2 className="text-3xl font-black uppercase italic">ألعاب مميزة</h2>
                 <p className="text-gray-500 text-sm font-medium">أفضل الاختيارات من مجموعتنا</p>
               </div>
             </div>
@@ -87,13 +120,13 @@ const Home: React.FC = () => {
 
         {/* Latest Products Section */}
         <section>
-          <div className="flex items-center justify-between mb-12">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col items-center text-center mb-12">
+            <div className="flex flex-col items-center gap-4 mb-6">
               <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center border border-purple-500/30">
                 <Store className="text-purple-400 w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-3xl font-black uppercase italic tracking-tighter">أحدث المنتجات</h2>
+                <h2 className="text-3xl font-black uppercase italic">أحدث المنتجات</h2>
                 <p className="text-gray-500 text-sm font-medium">مفاتيح، عملات، واشتراكات</p>
               </div>
             </div>

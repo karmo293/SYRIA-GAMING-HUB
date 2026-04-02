@@ -1,17 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { FileText, Download, Calendar, ShoppingBag, ChevronRight, Search, Filter, Loader2 } from 'lucide-react';
+import { FileText, Download, Calendar, ShoppingBag, ChevronRight, Search, Filter, Loader2, Package, ShieldCheck, Clock, RefreshCcw, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Order } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import WarrantyChecker from '../components/WarrantyChecker';
 
 const Orders: React.FC = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const deliverySteps = [
+    { id: 'Pending', label: 'قيد الانتظار', icon: <Clock className="w-4 h-4" /> },
+    { id: 'Processing', label: 'جاري المعالجة', icon: <RefreshCcw className="w-4 h-4" /> },
+    { id: 'Ready for pickup', label: 'جاهز للاستلام', icon: <Package className="w-4 h-4" /> },
+    { id: 'Delivered', label: 'تم التسليم', icon: <CheckCircle2 className="w-4 h-4" /> }
+  ];
+
+  const getStatusIndex = (status: string) => {
+    return deliverySteps.findIndex(step => step.id === status);
+  };
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -74,7 +86,7 @@ const Orders: React.FC = () => {
               </div>
               <span className="text-xs font-black uppercase tracking-[0.2em] text-cyan-500">سجل المشتريات</span>
             </motion.div>
-            <h1 className="text-4xl font-black uppercase italic tracking-tighter text-white">الفواتير والطلبات</h1>
+            <h1 className="text-4xl font-black uppercase italic text-white">الفواتير والطلبات</h1>
           </div>
 
           <div className="relative group">
@@ -99,7 +111,7 @@ const Orders: React.FC = () => {
             <div className="w-20 h-20 bg-white/5 rounded-[2rem] flex items-center justify-center mb-8 mx-auto">
               <ShoppingBag className="text-gray-600 w-10 h-10" />
             </div>
-            <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-4">لا توجد طلبات بعد</h3>
+            <h3 className="text-2xl font-black uppercase italic mb-4">لا توجد طلبات بعد</h3>
             <p className="text-gray-400 mb-8 max-w-xs mx-auto">لم تقم بأي عمليات شراء حتى الآن. ابدأ باستكشاف متجرنا!</p>
             <a
               href="/games"
@@ -139,11 +151,142 @@ const Orders: React.FC = () => {
                     <div className="flex flex-col items-end">
                       <div className="text-3xl font-black text-white italic mb-1">${order.totalAmount.toFixed(2)}</div>
                       <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-green-500" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-green-500">مكتمل</span>
+                        <span className={`w-2 h-2 rounded-full ${
+                          order.status === 'completed' ? 'bg-green-500' :
+                          order.status === 'pending' ? 'bg-yellow-500' :
+                          order.status === 'cancelled' ? 'bg-red-500' :
+                          order.status === 'refunded' ? 'bg-purple-500' :
+                          'bg-gray-500'
+                        }`} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${
+                          order.status === 'completed' ? 'text-green-500' :
+                          order.status === 'pending' ? 'text-yellow-500' :
+                          order.status === 'cancelled' ? 'text-red-500' :
+                          order.status === 'refunded' ? 'text-purple-500' :
+                          'text-gray-500'
+                        }`}>
+                          {order.status === 'completed' ? 'مكتمل' :
+                           order.status === 'pending' ? 'قيد الانتظار' :
+                           order.status === 'cancelled' ? 'ملغي' :
+                           order.status === 'refunded' ? 'مسترد' : order.status}
+                        </span>
                       </div>
                     </div>
                   </div>
+
+                  {order.deliveryStatus && (
+                    <div className="mb-8 p-6 bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden">
+                      <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center border border-cyan-500/20">
+                            <Package className="text-cyan-400 w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-cyan-500 mb-0.5">تتبع الطلب</div>
+                            <div className="text-sm font-bold text-white">رقم التتبع: {order.id.substring(0, 12)}</div>
+                          </div>
+                        </div>
+                        <div className="px-4 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-full text-[10px] font-black text-cyan-400 uppercase tracking-widest">
+                          {deliverySteps.find(s => s.id === order.deliveryStatus)?.label || order.deliveryStatus}
+                        </div>
+                      </div>
+
+                      {/* Delivery Stepper */}
+                      <div className="relative flex justify-between items-center px-4">
+                        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/10 -translate-y-1/2 z-0" />
+                        <div 
+                          className="absolute top-1/2 left-0 h-0.5 bg-cyan-500 -translate-y-1/2 z-0 transition-all duration-1000" 
+                          style={{ width: `${(getStatusIndex(order.deliveryStatus) / (deliverySteps.length - 1)) * 100}%` }}
+                        />
+                        
+                        {deliverySteps.map((step, idx) => {
+                          const currentIdx = getStatusIndex(order.deliveryStatus);
+                          const isActive = idx <= currentIdx;
+                          const isCurrent = idx === currentIdx;
+
+                          return (
+                            <div key={step.id} className="relative z-10 flex flex-col items-center">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
+                                isCurrent ? 'bg-cyan-500 border-cyan-400 text-black scale-110 shadow-[0_0_20px_rgba(6,182,212,0.4)]' :
+                                isActive ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' :
+                                'bg-[#0a0a0a] border-white/10 text-gray-600'
+                              }`}>
+                                {step.icon}
+                              </div>
+                              <span className={`absolute -bottom-6 text-[9px] font-black uppercase tracking-tighter whitespace-nowrap transition-colors duration-500 ${
+                                isActive ? 'text-white' : 'text-gray-600'
+                              }`}>
+                                {step.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {order.deliveryDetails && (
+                        <div className="mt-12 pt-8 border-t border-white/5 flex flex-col gap-8">
+                          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div className="flex-1 w-full">
+                              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">بيانات التسليم والوصول</div>
+                              <div className="p-4 bg-black/40 rounded-2xl border border-white/5 font-mono text-xs text-cyan-400 break-all relative group">
+                                {order.deliveryDetails}
+                                <button 
+                                  onClick={() => navigator.clipboard.writeText(order.deliveryDetails!)}
+                                  className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/5 hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <div className="shrink-0 flex flex-col gap-3">
+                              <button
+                                onClick={() => {
+                                  const btn = document.activeElement as HTMLButtonElement;
+                                  if (btn) {
+                                    btn.disabled = true;
+                                    const originalText = btn.innerHTML;
+                                    btn.innerHTML = `<svg class="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> جاري التفعيل...`;
+                                    setTimeout(() => {
+                                      btn.innerHTML = `<svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> تم التفعيل بنجاح`;
+                                      btn.classList.replace('bg-cyan-500', 'bg-green-500/20');
+                                      btn.classList.add('text-green-400');
+                                    }, 2000);
+                                  }
+                                }}
+                                className="bg-cyan-500 hover:bg-cyan-600 text-black px-8 py-4 rounded-2xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_30px_rgba(6,182,212,0.3)]"
+                              >
+                                <Zap className="w-4 h-4" />
+                                تفعيل الكود الآن
+                              </button>
+                              <WarrantyChecker 
+                                orderId={order.id} 
+                                deliveryDetails={order.deliveryDetails} 
+                                existingLogs={order.warrantyLog}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Item Preview in Delivery Section */}
+                          <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-4">
+                            <div className="w-16 h-20 bg-black rounded-xl overflow-hidden border border-white/10 shrink-0">
+                              <img 
+                                src={order.items[0].imageUrl} 
+                                alt={order.items[0].title} 
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-black uppercase tracking-widest text-cyan-500 mb-1">المنتج المستلم</div>
+                              <h4 className="font-bold text-white text-lg">{order.items[0].title}</h4>
+                              <p className="text-xs text-gray-500">هذا هو المنتج الذي تم تفعيله على حسابك بنجاح.</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     <div className="text-[10px] font-black uppercase tracking-widest text-gray-600 mb-2">المنتجات</div>
@@ -177,7 +320,30 @@ const Orders: React.FC = () => {
                       <span className="text-white font-medium">{order.paymentMethod}</span>
                     </div>
                     
-                    <button className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all border border-white/10">
+                    <button 
+                      onClick={() => {
+                        const btn = document.activeElement as HTMLButtonElement;
+                        if (btn) {
+                          const originalText = btn.innerHTML;
+                          btn.disabled = true;
+                          btn.innerHTML = `<svg class="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> جاري التحميل...`;
+                          
+                          setTimeout(() => {
+                            btn.innerHTML = `<svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> تم التحميل`;
+                            btn.classList.remove('bg-cyan-500', 'hover:bg-cyan-600', 'text-black');
+                            btn.classList.add('bg-green-500/20', 'text-green-400', 'border-green-500/30');
+                            
+                            setTimeout(() => {
+                              btn.disabled = false;
+                              btn.innerHTML = originalText;
+                              btn.classList.remove('bg-green-500/20', 'text-green-400', 'border-green-500/30');
+                              btn.classList.add('bg-cyan-500', 'hover:bg-cyan-600', 'text-black');
+                            }, 2000);
+                          }, 1500);
+                        }
+                      }}
+                      className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-black px-6 py-3 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)]"
+                    >
                       <Download className="w-4 h-4" />
                       تحميل الفاتورة (PDF)
                     </button>

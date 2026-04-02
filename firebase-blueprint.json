@@ -22,15 +22,32 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "gameId": { "type": "string" },
         "title": { "type": "string" },
         "description": { "type": "string" },
         "imageUrl": { "type": "string" },
         "price": { "type": "number" },
         "category": { "type": "string", "enum": ["Key", "Currency", "Subscription", "Other"] },
+        "stock": { "type": "number" },
+        "alternativeProductId": { "type": "string" },
+        "bundleInfo": { "type": "object" },
+        "activationVideoUrl": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "description", "imageUrl", "price", "category"]
+    },
+    "DigitalCode": {
+      "title": "Digital Code",
+      "description": "The actual digital key or code for a product.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "code": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "sold", "faulty"] },
+        "orderId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "code", "status"]
     },
     "User": {
       "title": "User",
@@ -39,27 +56,63 @@
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "user"] },
+        "role": { "type": "string", "enum": ["admin", "user", "vendor"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "ownedGames": { "type": "array", "items": { "type": "string" } },
-        "wishlist": { "type": "array", "items": { "type": "string" } }
+        "wishlist": { "type": "array", "items": { "type": "string" } },
+        "walletBalance": { "type": "number" },
+        "points": { "type": "number" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "subscriptions": { "type": "array", "items": { "type": "object" } }
       },
       "required": ["uid", "email", "role"]
     },
     "Review": {
       "title": "Review",
-      "description": "A user review for a game.",
+      "description": "A user review for a product.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "gameId": { "type": "string" },
+        "productId": { "type": "string" },
         "userId": { "type": "string" },
         "userEmail": { "type": "string" },
         "rating": { "type": "number" },
         "comment": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isVerified": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["gameId", "userId", "userEmail", "rating", "comment"]
+      "required": ["productId", "userId", "userEmail", "rating", "comment"]
+    },
+    "SupportTicket": {
+      "title": "Support Ticket",
+      "description": "A support request or compensation claim.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "closed", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "subject", "message", "status"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "A discount coupon.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "discountType": { "type": "string", "enum": ["percentage", "fixed"] },
+        "value": { "type": "number" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "isTemporary": { "type": "boolean" }
+      },
+      "required": ["code", "discountType", "value"]
     },
     "Order": {
       "title": "Order",
@@ -71,21 +124,54 @@
         "userEmail": { "type": "string" },
         "items": { "type": "array", "items": { "type": "object" } },
         "totalAmount": { "type": "number" },
-        "status": { "type": "string", "enum": ["completed", "pending", "failed"] },
+        "status": { "type": "string", "enum": ["completed", "pending", "failed", "cancelled", "refunded"] },
         "paymentMethod": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "deliveryStatus": { "type": "string", "enum": ["Pending", "Processing", "Delivered", "Ready for pickup"] },
+        "deliveryType": { "type": "string" },
+        "deliveryDetails": { "type": "string" },
+        "deliveryInstructions": { "type": "string" }
       },
       "required": ["userId", "items", "totalAmount", "status", "createdAt"]
+    },
+    "Quest": {
+      "title": "Quest",
+      "description": "A gamification quest for users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "target": { "type": "number" },
+        "rewardXp": { "type": "number" },
+        "rewardCoins": { "type": "number" },
+        "category": { "type": "string" }
+      }
+    },
+    "ScheduledGift": {
+      "title": "Scheduled Gift",
+      "description": "A gift scheduled for delivery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "recipientName": { "type": "string" },
+        "recipientContact": { "type": "string" },
+        "productId": { "type": "string" },
+        "message": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "sent"] }
+      }
     }
   },
   "firestore": {
-    "/games/{gameId}": {
-      "schema": "Game",
-      "description": "Collection of games."
-    },
     "/products/{productId}": {
       "schema": "Product",
       "description": "Collection of digital products."
+    },
+    "/digitalCodes/{codeId}": {
+      "schema": "DigitalCode",
+      "description": "Collection of actual digital keys."
     },
     "/users/{userId}": {
       "schema": "User",
@@ -98,6 +184,18 @@
     "/orders/{orderId}": {
       "schema": "Order",
       "description": "Collection of user orders."
+    },
+    "/supportTickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Support tickets and claims."
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Discount coupons."
+    },
+    "/scheduledGifts/{giftId}": {
+      "schema": "ScheduledGift",
+      "description": "Scheduled gifts."
     }
   }
 }
