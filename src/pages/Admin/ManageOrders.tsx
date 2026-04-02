@@ -113,10 +113,16 @@ const ManageOrders: React.FC = () => {
   };
 
   const filteredOrders = orders.filter(order => {
+    const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.items.some(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+      order.id.toLowerCase().includes(searchLower) ||
+      order.userEmail.toLowerCase().includes(searchLower) ||
+      order.userId.toLowerCase().includes(searchLower) ||
+      order.paymentMethod?.toLowerCase().includes(searchLower) ||
+      order.items?.some(item => 
+        item.title.toLowerCase().includes(searchLower) || 
+        item.id.toLowerCase().includes(searchLower)
+      );
     
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     const matchesDelivery = deliveryFilter === 'all' || (order.deliveryStatus || 'Pending') === deliveryFilter;

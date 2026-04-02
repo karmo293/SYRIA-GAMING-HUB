@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { FileText, Download, Calendar, ShoppingBag, ChevronRight, Search, Filter, Loader2, Package, ShieldCheck, Clock, RefreshCcw, CheckCircle2 } from 'lucide-react';
+import { FileText, Download, Calendar, ShoppingBag, ChevronRight, Search, Filter, Loader2, Package, ShieldCheck, Clock, RefreshCcw, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Order } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
@@ -13,6 +13,7 @@ const Orders: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const deliverySteps = [
     { id: 'Pending', label: 'قيد الانتظار', icon: <Clock className="w-4 h-4" /> },
@@ -23,6 +24,23 @@ const Orders: React.FC = () => {
 
   const getStatusIndex = (status: string) => {
     return deliverySteps.findIndex(step => step.id === status);
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    if (!window.confirm('هل أنت متأكد من رغبتك في إلغاء هذا الطلب؟')) return;
+    
+    setCancellingId(orderId);
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        status: 'cancelled'
+      });
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
+    } catch (error) {
+      console.error("Error cancelling order:", error);
+      alert("حدث خطأ أثناء إلغاء الطلب");
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   useEffect(() => {
@@ -174,7 +192,7 @@ const Orders: React.FC = () => {
                     </div>
                   </div>
 
-                  {order.deliveryStatus && (
+                  {order.deliveryStatus && order.status !== 'cancelled' && order.status !== 'refunded' && (
                     <div className="mb-8 p-6 bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden">
                       <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-3">
@@ -224,64 +242,26 @@ const Orders: React.FC = () => {
                       </div>
 
                       {order.deliveryDetails && (
-                        <div className="mt-12 pt-8 border-t border-white/5 flex flex-col gap-8">
-                          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                            <div className="flex-1 w-full">
-                              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">بيانات التسليم والوصول</div>
-                              <div className="p-4 bg-black/40 rounded-2xl border border-white/5 font-mono text-xs text-cyan-400 break-all relative group">
-                                {order.deliveryDetails}
-                                <button 
-                                  onClick={() => navigator.clipboard.writeText(order.deliveryDetails!)}
-                                  className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/5 hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                                >
-                                  <FileText className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                            
-                            <div className="shrink-0 flex flex-col gap-3">
-                              <button
-                                onClick={() => {
-                                  const btn = document.activeElement as HTMLButtonElement;
-                                  if (btn) {
-                                    btn.disabled = true;
-                                    const originalText = btn.innerHTML;
-                                    btn.innerHTML = `<svg class="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> جاري التفعيل...`;
-                                    setTimeout(() => {
-                                      btn.innerHTML = `<svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> تم التفعيل بنجاح`;
-                                      btn.classList.replace('bg-cyan-500', 'bg-green-500/20');
-                                      btn.classList.add('text-green-400');
-                                    }, 2000);
-                                  }
-                                }}
-                                className="bg-cyan-500 hover:bg-cyan-600 text-black px-8 py-4 rounded-2xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_30px_rgba(6,182,212,0.3)]"
+                        <div className="mt-12 pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
+                          <div className="flex-1 w-full">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">بيانات التسليم والوصول</div>
+                            <div className="p-4 bg-black/40 rounded-2xl border border-white/5 font-mono text-xs text-cyan-400 break-all relative group">
+                              {order.deliveryDetails}
+                              <button 
+                                onClick={() => navigator.clipboard.writeText(order.deliveryDetails!)}
+                                className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/5 hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                               >
-                                <Zap className="w-4 h-4" />
-                                تفعيل الكود الآن
+                                <FileText className="w-4 h-4" />
                               </button>
-                              <WarrantyChecker 
-                                orderId={order.id} 
-                                deliveryDetails={order.deliveryDetails} 
-                                existingLogs={order.warrantyLog}
-                              />
                             </div>
                           </div>
-
-                          {/* Item Preview in Delivery Section */}
-                          <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-4">
-                            <div className="w-16 h-20 bg-black rounded-xl overflow-hidden border border-white/10 shrink-0">
-                              <img 
-                                src={order.items[0].imageUrl} 
-                                alt={order.items[0].title} 
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
-                            </div>
-                            <div>
-                              <div className="text-[10px] font-black uppercase tracking-widest text-cyan-500 mb-1">المنتج المستلم</div>
-                              <h4 className="font-bold text-white text-lg">{order.items[0].title}</h4>
-                              <p className="text-xs text-gray-500">هذا هو المنتج الذي تم تفعيله على حسابك بنجاح.</p>
-                            </div>
+                          
+                          <div className="shrink-0">
+                            <WarrantyChecker 
+                              orderId={order.id} 
+                              deliveryDetails={order.deliveryDetails} 
+                              existingLogs={order.warrantyLog}
+                            />
                           </div>
                         </div>
                       )}
@@ -315,9 +295,26 @@ const Orders: React.FC = () => {
                   </div>
 
                   <div className="mt-8 pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 text-gray-500 text-sm">
-                      <span className="font-bold uppercase tracking-widest text-[10px]">طريقة الدفع:</span>
-                      <span className="text-white font-medium">{order.paymentMethod}</span>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 text-gray-500 text-sm">
+                        <span className="font-bold uppercase tracking-widest text-[10px]">طريقة الدفع:</span>
+                        <span className="text-white font-medium">{order.paymentMethod}</span>
+                      </div>
+                      
+                      {order.status === 'pending' && (
+                        <button
+                          onClick={() => handleCancelOrder(order.id)}
+                          disabled={cancellingId === order.id}
+                          className="flex items-center gap-2 text-red-400 hover:text-red-300 text-xs font-bold transition-colors disabled:opacity-50"
+                        >
+                          {cancellingId === order.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <XCircle className="w-4 h-4" />
+                          )}
+                          إلغاء الطلب
+                        </button>
+                      )}
                     </div>
                     
                     <button 
