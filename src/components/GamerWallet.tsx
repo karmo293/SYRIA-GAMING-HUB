@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
-import { Wallet, Star, Trophy } from 'lucide-react';
+import { Wallet, Star, Trophy, Coins } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const GamerWallet: React.FC = () => {
@@ -11,7 +11,7 @@ const GamerWallet: React.FC = () => {
 
   const xp = userProfile.xp || 0;
   const level = userProfile.level || 1;
-  const nextLevelXP = level * 1000;
+  const points = userProfile.points || 0;
   const progress = (xp % 1000) / 10; // Percentage for current level
 
   return (
@@ -24,6 +24,17 @@ const GamerWallet: React.FC = () => {
         <div className="flex flex-col">
           <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">المحفظة</span>
           <span className="text-xs font-black text-white">{userProfile.walletBalance?.toFixed(2) || '0.00'} $</span>
+        </div>
+      </div>
+
+      {/* Points */}
+      <div className="flex items-center gap-2 border-l border-white/10 pl-4">
+        <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center border border-purple-500/30">
+          <Coins className="text-purple-400 w-4 h-4" />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">النقاط</span>
+          <span className="text-xs font-black text-white">{points}</span>
         </div>
       </div>
 

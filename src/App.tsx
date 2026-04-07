@@ -22,10 +22,11 @@ import ManageGames from './pages/Admin/ManageGames';
 import ManageProducts from './pages/Admin/ManageProducts';
 import ManageOrders from './pages/Admin/ManageOrders';
 import ManageMessages from './pages/Admin/ManageMessages';
+import ManageUsers from './pages/Admin/ManageUsers';
 import BudgetDashboard from './pages/BudgetDashboard';
 import AIStylist from './pages/AIStylist';
 import Quests from './pages/Quests';
-import ManageUsers from './pages/Admin/ManageUsers';
+import ManageBids from './pages/Admin/ManageBids';
 import Contact from './pages/Contact';
 import LootBox from './pages/LootBox';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -82,6 +83,11 @@ export default function App() {
               <Route path="admin/users" element={
                 <ProtectedRoute adminOnly>
                   <ManageUsers />
+                </ProtectedRoute>
+              } />
+              <Route path="admin/bids" element={
+                <ProtectedRoute adminOnly>
+                  <ManageBids />
                 </ProtectedRoute>
               } />
             </Route>

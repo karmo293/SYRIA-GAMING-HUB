@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { collection, getDocs, doc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Order, Notification, DeliveryStatus } from '../../types';
-import { Package, Search, Filter, Loader2, User, Calendar, ChevronRight, XCircle, RefreshCcw, CheckCircle2 } from 'lucide-react';
+import { Package, Search, Filter, Loader2, User, Calendar, ChevronRight, XCircle, RefreshCcw, CheckCircle2, Edit3, Save } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
@@ -13,6 +13,7 @@ const ManageOrders: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [deliveryFilter, setDeliveryFilter] = useState<string>('all');
+  const [editingDetails, setEditingDetails] = useState<{ id: string, details: string } | null>(null);
 
   const fetchOrders = async () => {
     try {
@@ -109,6 +110,22 @@ const ManageOrders: React.FC = () => {
     } catch (error) {
       console.error("Error updating delivery status:", error);
       alert("حدث خطأ أثناء تحديث حالة التسليم");
+    }
+  };
+
+  const saveDeliveryDetails = async (orderId: string) => {
+    if (!editingDetails) return;
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        deliveryDetails: editingDetails.details
+      });
+      setOrders(prev => prev.map(o => 
+        o.id === orderId ? { ...o, deliveryDetails: editingDetails.details } : o
+      ));
+      setEditingDetails(null);
+    } catch (error) {
+      console.error("Error saving delivery details:", error);
+      alert("حدث خطأ أثناء حفظ بيانات التسليم");
     }
   };
 
@@ -320,7 +337,24 @@ const ManageOrders: React.FC = () => {
                     </div>
 
                     <div className="bg-black/40 p-6 rounded-2xl border border-white/5">
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-cyan-400 mb-4">بيانات التسليم</h4>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-cyan-400">بيانات التسليم</h4>
+                        {editingDetails?.id === order.id ? (
+                          <button
+                            onClick={() => saveDeliveryDetails(order.id)}
+                            className="text-green-500 hover:text-green-400 transition-colors"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setEditingDetails({ id: order.id, details: order.deliveryDetails || '' })}
+                            className="text-gray-500 hover:text-white transition-colors"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                       <div className="space-y-4">
                         <div className="flex justify-between">
                           <span className="text-xs text-gray-500">النوع:</span>
@@ -328,9 +362,17 @@ const ManageOrders: React.FC = () => {
                         </div>
                         <div>
                           <span className="text-xs text-gray-500 block mb-2">البيانات:</span>
-                          <code className="block p-3 bg-white/5 rounded-lg text-xs font-mono text-cyan-400 break-all">
-                            {order.deliveryDetails || 'لا توجد بيانات'}
-                          </code>
+                          {editingDetails?.id === order.id ? (
+                            <textarea
+                              value={editingDetails.details}
+                              onChange={(e) => setEditingDetails({ ...editingDetails, details: e.target.value })}
+                              className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-xs font-mono text-cyan-400 outline-none focus:border-cyan-500 min-h-[80px]"
+                            />
+                          ) : (
+                            <code className="block p-3 bg-white/5 rounded-lg text-xs font-mono text-cyan-400 break-all">
+                              {order.deliveryDetails || 'لا توجد بيانات'}
+                            </code>
+                          )}
                         </div>
                         {order.deliveryInstructions && (
                           <div>

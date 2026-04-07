@@ -17,39 +17,53 @@ const SteamIntegration: React.FC = () => {
     if (!user) return;
     setIsLinking(true);
     
-    // Simulate Steam OAuth / API call
-    setTimeout(async () => {
-      try {
-        const mockSteamProfile = {
-          steamId: '76561198000000000',
-          personaname: 'GamerPro_SY',
-          avatarfull: 'https://picsum.photos/seed/steam/200/200',
-          profileurl: 'https://steamcommunity.com/id/gamerpro_sy'
-        };
-
-        const mockGames = [
-          'Counter-Strike 2',
-          'Dota 2',
-          'Cyberpunk 2077',
-          'Elden Ring',
-          'The Witcher 3: Wild Hunt',
-          'PUBG: BATTLEGROUNDS'
-        ];
-
-        const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, {
-          steamId: mockSteamProfile.steamId,
-          steamProfile: mockSteamProfile,
-          steamGames: mockGames
-        });
-
-        setIsLinking(false);
-        analyzeGames(mockGames);
-      } catch (error) {
-        console.error("Error linking Steam:", error);
-        setIsLinking(false);
+    try {
+      const response = await fetch('/api/steam/link', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      
+      if (data.url) {
+        // Simulate successful link for now
+        setTimeout(async () => {
+          const syncResponse = await fetch('/api/steam/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.uid, steamId: '76561198000000000' })
+          });
+          const syncData = await syncResponse.json();
+          
+          if (syncData.success) {
+            const mockSteamProfile = {
+              steamId: '76561198000000000',
+              personaname: 'GamerPro_SY',
+              avatarfull: 'https://picsum.photos/seed/steam/200/200',
+              profileurl: 'https://steamcommunity.com/id/gamerpro_sy'
+            };
+            const mockGames = [
+              'Counter-Strike 2',
+              'Dota 2',
+              'Cyberpunk 2077',
+              'Elden Ring',
+              'The Witcher 3: Wild Hunt',
+              'PUBG: BATTLEGROUNDS'
+            ];
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+              steamId: mockSteamProfile.steamId,
+              steamProfile: mockSteamProfile,
+              steamGames: mockGames
+            });
+            setIsLinking(false);
+            analyzeGames(mockGames);
+          }
+        }, 2000);
       }
-    }, 2000);
+    } catch (error) {
+      console.error("Error linking Steam:", error);
+      setIsLinking(false);
+    }
   };
 
   const analyzeGames = async (games: string[]) => {

@@ -29,29 +29,26 @@ const PriceProtection: React.FC<PriceProtectionProps> = ({ itemId, itemTitle, cu
 
     setIsProcessing(true);
     
-    // Simulate processing
-    setTimeout(async () => {
-      try {
-        const expiresAt = new Date();
-        expiresAt.setHours(expiresAt.getHours() + 24);
+    try {
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
 
-        const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, {
-          walletBalance: (userProfile.walletBalance || 0) - protectionFee,
-          lockedPrices: arrayUnion({
-            itemId,
-            price: currentPrice,
-            expiresAt: expiresAt.toISOString()
-          })
-        });
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        walletBalance: (userProfile.walletBalance || 0) - protectionFee,
+        lockedPrices: arrayUnion({
+          itemId,
+          price: currentPrice,
+          expiresAt: expiresAt.toISOString()
+        })
+      });
 
-        setShowSuccess(true);
-        setIsProcessing(false);
-      } catch (error) {
-        console.error("Error protecting price:", error);
-        setIsProcessing(false);
-      }
-    }, 1500);
+      setShowSuccess(true);
+      setIsProcessing(false);
+    } catch (error) {
+      console.error("Error protecting price:", error);
+      setIsProcessing(false);
+    }
   };
 
   if (isProtected) {

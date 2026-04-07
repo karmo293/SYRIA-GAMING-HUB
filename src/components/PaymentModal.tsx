@@ -26,8 +26,8 @@ const generateId = () => {
 };
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, itemTitle, itemType = 'game', isCart }) => {
-  const { user, userProfile, updateWallet } = useAuth();
-  const { cartItems, clearCart, totalPrice } = useCart();
+  const { user, userProfile, updateWallet, addPoints } = useAuth();
+  const { cartItems, clearCart, totalPrice, pointsEarned } = useCart();
   const [step, setStep] = useState<'form' | 'confirm' | 'processing' | 'success'>('form');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet'>('card');
   const [formData, setFormData] = useState({
@@ -53,190 +53,79 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
       console.warn("Purchase attempted without user session");
       return;
     }
-    if (!isCart && !itemId) {
-      console.warn("Purchase attempted without itemId or isCart flag");
-      return;
-    }
     
     setStep('processing');
-    console.log("Processing purchase...", { isCart, itemId, itemTitle, itemType, paymentMethod });
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
     try {
-      const price = isCart ? totalPrice : 0; // Need to handle single item price properly if not cart
-      
-      if (paymentMethod === 'wallet') {
-        if ((userProfile?.walletBalance || 0) < price) {
-          throw new Error('رصيدك غير كافٍ في المحفظة');
-        }
-        await updateWallet(-price);
-      }
+      if (paymentMethod === 'card') {
+        const items = isCart ? cartItems : [{
+          id: itemId,
+          title: itemTitle,
+          price: 0, // We'll need to fetch the real price in the backend or pass it
+          imageUrl: '', // Same here
+          quantity: 1
+        }];
 
-      const userRef = doc(db, 'users', user.uid);
-      const notifications: Notification[] = [];
-      const timestamp = new Date().toISOString();
-      const orderId = generateId();
-
-      if (isCart) {
-        // Fetch full details for all items in cart to get delivery info
-        for (const item of cartItems) {
-          const collectionName = item.type === 'game' ? 'games' : 'products';
-          let itemDoc;
-          try {
-            itemDoc = await getDoc(doc(db, collectionName, item.id));
-          } catch (err) {
-            handleFirestoreError(err, OperationType.GET, `${collectionName}/${item.id}`);
-            return;
-          }
-          
+        // Fetch real prices for single item if needed
+        if (!isCart && itemId) {
+          const collectionName = itemType === 'game' ? 'games' : 'products';
+          const itemDoc = await getDoc(doc(db, collectionName, itemId));
           if (itemDoc.exists()) {
             const data = itemDoc.data();
-            notifications.push({
-              id: generateId(),
-              userId: user.uid,
-              title: `تم شراء ${item.title} بنجاح`,
-              message: `شكراً لشرائك ${item.title}. إليك تفاصيل التسليم الخاصة بك.`,
-              type: 'purchase',
-              createdAt: timestamp,
-              read: false,
-              itemId: item.id,
-              itemTitle: item.title,
-              deliveryType: data.deliveryType || 'Other',
-              deliveryDetails: data.deliveryDetails || 'سيتم التواصل معك قريباً',
-              deliveryInstructions: data.deliveryInstructions || '',
-              deliveryStatus: 'Pending'
-            });
+            items[0].price = data.ourPrice || data.price || 0;
+            items[0].imageUrl = data.imageUrl || '';
           }
         }
 
-        const gameIds = cartItems
-          .filter(item => item.type === 'game')
-          .map(item => item.id);
-        
-        console.log("Cart purchase: adding games and notifications", gameIds);
-        
-        const updateData: any = {};
-        if (gameIds.length > 0) {
-          updateData.ownedGames = arrayUnion(...gameIds);
-        }
-        if (notifications.length > 0) {
-          updateData.notifications = arrayUnion(...notifications);
-        }
-
-        if (Object.keys(updateData).length > 0) {
-          try {
-            await setDoc(userRef, updateData, { merge: true });
-          } catch (err) {
-            handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
-            return;
-          }
-        }
-
-        // Create Order document
-        try {
-          // Use the first item's delivery info for the order (simplification)
-          const firstItemNotification = notifications[0];
-          await setDoc(doc(db, 'orders', orderId), {
-            id: orderId,
+        const response = await fetch('/api/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items,
             userId: user.uid,
-            userEmail: user.email || '',
-            items: cartItems,
-            totalAmount: totalPrice,
-            status: 'completed',
-            paymentMethod: paymentMethod === 'card' ? 'Credit Card' : 'Wallet',
-            createdAt: timestamp,
-            deliveryStatus: 'Pending',
-            deliveryType: firstItemNotification?.deliveryType || 'Other',
-            deliveryDetails: firstItemNotification?.deliveryDetails || '',
-            deliveryInstructions: firstItemNotification?.deliveryInstructions || ''
-          });
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `orders/${orderId}`);
+            userEmail: user.email
+          })
+        });
+
+        const session = await response.json();
+        if (session.url) {
+          window.location.href = session.url;
           return;
-        }
-
-        clearCart();
-      } else if (itemId) {
-        // Single item purchase
-        const collectionName = itemType === 'game' ? 'games' : 'products';
-        let itemDoc;
-        try {
-          itemDoc = await getDoc(doc(db, collectionName, itemId));
-        } catch (err) {
-          handleFirestoreError(err, OperationType.GET, `${collectionName}/${itemId}`);
-          return;
-        }
-        
-        if (itemDoc.exists()) {
-          const data = itemDoc.data();
-          const itemPrice = data.ourPrice || data.price || 0;
-
-          if (paymentMethod === 'wallet' && (userProfile?.walletBalance || 0) < itemPrice) {
-             throw new Error('رصيدك غير كافٍ في المحفظة');
-          }
-
-          const notification: Notification = {
-            id: generateId(),
-            userId: user.uid,
-            title: `تم شراء ${itemTitle} بنجاح`,
-            message: `شكراً لشرائك ${itemTitle}. إليك تفاصيل التسليم الخاصة بك.`,
-            type: 'purchase',
-            createdAt: timestamp,
-            read: false,
-            itemId: itemId,
-            itemTitle: itemTitle || '',
-            deliveryType: data.deliveryType || 'Other',
-            deliveryDetails: data.deliveryDetails || 'سيتم التواصل معك قريباً',
-            deliveryInstructions: data.deliveryInstructions || '',
-            deliveryStatus: 'Pending'
-          };
-
-          const updateData: any = {
-            notifications: arrayUnion(notification)
-          };
-
-          if (itemType === 'game') {
-            updateData.ownedGames = arrayUnion(itemId);
-          }
-
-          try {
-            await setDoc(userRef, updateData, { merge: true });
-          } catch (err) {
-            handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
-            return;
-          }
-
-          // Create Order document
-          try {
-            await setDoc(doc(db, 'orders', orderId), {
-              id: orderId,
-              userId: user.uid,
-              userEmail: user.email || '',
-              items: [{
-                id: itemId,
-                title: itemTitle || '',
-                price: itemPrice,
-                imageUrl: data.imageUrl || '',
-                type: itemType,
-                quantity: 1
-              }],
-              totalAmount: itemPrice,
-              status: 'completed',
-              paymentMethod: paymentMethod === 'card' ? 'Credit Card' : 'Wallet',
-              createdAt: timestamp,
-              deliveryStatus: 'Pending',
-              deliveryType: data.deliveryType || 'Other',
-              deliveryDetails: data.deliveryDetails || '',
-              deliveryInstructions: data.deliveryInstructions || ''
-            });
-          } catch (err) {
-            handleFirestoreError(err, OperationType.WRITE, `orders/${orderId}`);
-            return;
-          }
+        } else {
+          throw new Error('Failed to create checkout session');
         }
       }
+
+      // Wallet payment logic
+      const pointsEarnedForThisPurchase = Math.floor(totalPrice * 10);
+      const idToken = await user.getIdToken(true);
+
+      const response = await fetch('/api/pay-with-wallet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          items: isCart ? cartItems : [{
+            id: itemId,
+            title: itemTitle || '',
+            price: totalPrice,
+            imageUrl: '', 
+            type: itemType,
+            quantity: 1
+          }],
+          totalPrice,
+          pointsEarned: pointsEarnedForThisPurchase
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'فشلت عملية الدفع');
+      }
+
+      if (isCart) clearCart();
       
       console.log("Purchase successful");
       setStep('success');

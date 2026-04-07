@@ -21,29 +21,27 @@ const ReverseAuction: React.FC<ReverseAuctionProps> = ({ itemId, itemTitle, curr
   const handleSubmitBid = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-
+ 
     setIsSubmitting(true);
     
-    // Simulate bid submission
-    setTimeout(async () => {
-      try {
-        await addDoc(collection(db, 'bids'), {
-          itemId,
-          itemTitle,
-          userId: user.uid,
-          userEmail: user.email,
-          bidPrice,
-          status: 'pending',
-          createdAt: new Date().toISOString()
-        });
-
-        setShowSuccess(true);
-        setIsSubmitting(false);
-      } catch (error) {
-        console.error("Error submitting bid:", error);
-        setIsSubmitting(false);
-      }
-    }, 1500);
+    try {
+      await addDoc(collection(db, 'bids'), {
+        itemId,
+        itemTitle,
+        userId: user.uid,
+        userEmail: user.email,
+        bidPrice,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+ 
+      setShowSuccess(true);
+      setIsSubmitting(false);
+    } catch (error) {
+      console.error("Error submitting bid:", error);
+      setIsSubmitting(false);
+    }
   };
 
   return (

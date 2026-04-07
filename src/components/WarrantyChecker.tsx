@@ -19,29 +19,26 @@ const WarrantyChecker: React.FC<WarrantyCheckerProps> = ({ orderId, deliveryDeta
   const handleLogActivation = async () => {
     setIsLogging(true);
     
-    // Simulate logging process
-    setTimeout(async () => {
-      try {
-        const newLog = {
-          action: 'Code Revealed & Activation Logged',
-          timestamp: new Date().toISOString(),
-          userAgent: navigator.userAgent,
-          status: 'Verified'
-        };
+    try {
+      const newLog = {
+        action: 'Code Revealed & Activation Logged',
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        status: 'Verified'
+      };
 
-        const orderRef = doc(db, 'orders', orderId);
-        await updateDoc(orderRef, {
-          warrantyLog: arrayUnion(newLog)
-        });
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        warrantyLog: arrayUnion(newLog)
+      });
 
-        setLogs(prev => [...prev, newLog]);
-        setIsLogging(false);
-        setShowDetails(true);
-      } catch (error) {
-        console.error("Error logging warranty:", error);
-        setIsLogging(false);
-      }
-    }, 1500);
+      setLogs(prev => [...prev, newLog]);
+      setIsLogging(false);
+      setShowDetails(true);
+    } catch (error) {
+      console.error("Error logging warranty:", error);
+      setIsLogging(false);
+    }
   };
 
   const isVerified = logs.length > 0;

@@ -77,6 +77,7 @@ export interface UserProfile {
   xp?: number;
   level?: number;
   lastLogin?: string;
+  lastPointDeduction?: string;
   lockedPrices?: {
     itemId: string;
     price: number;
@@ -132,7 +133,8 @@ export interface ContactMessage {
 
 export interface Review {
   id: string;
-  productId: string;
+  targetType: 'game' | 'product';
+  targetId: string;
   userId: string;
   userEmail: string;
   rating: number;
@@ -151,23 +153,67 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface Bid {
+  id: string;
+  itemId: string;
+  itemType: 'game' | 'product';
+  itemTitle: string;
+  userId: string;
+  userEmail: string;
+  bidPrice: number;
+  currency: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'countered' | 'expired';
+  adminResponse?: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
+export interface DigitalCode {
+  id: string;
+  productId: string;
+  provider: string;
+  codeMasked: string;
+  codeEncrypted?: string; // Only accessible by admin/backend
+  secretRef?: string;
+  status: 'available' | 'reserved' | 'sold' | 'faulty' | 'refunded' | 'quarantined';
+  assignedOrderId?: string;
+  assignedUserId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Order {
   id: string;
   userId: string;
   userEmail: string;
   items: CartItem[];
+  subtotal: number;
+  discount: number;
   totalAmount: number;
+  currency: string;
   status: 'completed' | 'pending' | 'failed' | 'cancelled' | 'refunded';
+  paymentId?: string;
+  paymentStatus: 'pending' | 'requires_action' | 'paid' | 'failed' | 'refunded' | 'partially_refunded' | 'cancelled';
+  fulfillmentStatus: 'pending' | 'processing' | 'fulfilled' | 'failed';
+  orderStatus: 'new' | 'processing' | 'completed' | 'cancelled' | 'refunded';
   paymentMethod: string;
   createdAt: string;
+  updatedAt: string;
   deliveryStatus?: DeliveryStatus;
   deliveryType?: DeliveryType;
   deliveryDetails?: string;
   deliveryInstructions?: string;
+  revealStatus: 'hidden' | 'revealed';
+  warrantyStatus: 'inactive' | 'active' | 'expired' | 'claimed';
+  warrantyActivatedAt?: string;
   warrantyLog?: {
     action: string;
     timestamp: string;
     ip?: string;
     userAgent?: string;
+    fingerprint?: string;
+    country?: string;
+    method?: string;
   }[];
 }

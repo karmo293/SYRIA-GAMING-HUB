@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { FileText, Download, Calendar, ShoppingBag, ChevronRight, Search, Filter, Loader2, Package, ShieldCheck, Clock, RefreshCcw, CheckCircle2, XCircle } from 'lucide-react';
+import { FileText, Download, Calendar, ShoppingBag, ChevronRight, Search, Filter, Loader2, Package, ShieldCheck, Clock, RefreshCcw, CheckCircle2, XCircle, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { collection, query, where, getDocs, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -14,6 +14,37 @@ const Orders: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [revealingId, setRevealingId] = useState<string | null>(null);
+  const [revealedCodes, setRevealedCodes] = useState<Record<string, any[]>>({});
+
+  const handleRevealCode = async (orderId: string) => {
+    setRevealingId(orderId);
+    try {
+      const idToken = await user?.getIdToken(true);
+      const response = await fetch('/api/reveal-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ orderId })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'فشل كشف الكود');
+      }
+
+      const data = await response.json();
+      setRevealedCodes(prev => ({ ...prev, [orderId]: data.codes }));
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, revealStatus: 'revealed' } : o));
+    } catch (error) {
+      console.error("Error revealing code:", error);
+      alert(error instanceof Error ? error.message : "حدث خطأ أثناء كشف الكود");
+    } finally {
+      setRevealingId(null);
+    }
+  };
 
   const deliverySteps = [
     { id: 'Pending', label: 'قيد الانتظار', icon: <Clock className="w-4 h-4" /> },
@@ -192,7 +223,52 @@ const Orders: React.FC = () => {
                     </div>
                   </div>
 
-                  {order.deliveryStatus && order.status !== 'cancelled' && order.status !== 'refunded' && (
+                  {order.status === 'completed' && (
+                    <div className="mb-8 p-6 bg-cyan-500/5 border border-cyan-500/20 rounded-[2rem]">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <Zap className="text-cyan-400 w-5 h-5" />
+                          <span className="text-sm font-black uppercase italic">تسليم الكود الرقمي</span>
+                        </div>
+                        {order.revealStatus !== 'revealed' && !revealedCodes[order.id] ? (
+                          <button
+                            onClick={() => handleRevealCode(order.id)}
+                            disabled={revealingId === order.id}
+                            className="bg-cyan-500 hover:bg-cyan-600 text-black px-6 py-2 rounded-xl font-black text-xs transition-all flex items-center gap-2"
+                          >
+                            {revealingId === order.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                            كشف الكود الآن
+                          </button>
+                        ) : (
+                          <span className="text-green-400 text-xs font-black uppercase">تم الكشف</span>
+                        )}
+                      </div>
+
+                      {(order.revealStatus === 'revealed' || revealedCodes[order.id]) && (
+                        <div className="space-y-3">
+                          {(revealedCodes[order.id] || []).map((c, i) => (
+                            <div key={i} className="p-4 bg-black/40 rounded-xl border border-white/5 flex items-center justify-between group">
+                              <div>
+                                <div className="text-[10px] font-bold text-gray-500 uppercase mb-1">{c.title}</div>
+                                <div className="font-mono text-cyan-400 font-bold">{c.code}</div>
+                              </div>
+                              <button 
+                                onClick={() => navigator.clipboard.writeText(c.code)}
+                                className="p-2 hover:bg-white/5 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                              >
+                                <FileText className="w-4 h-4 text-gray-500" />
+                              </button>
+                            </div>
+                          ))}
+                          {(!revealedCodes[order.id] || revealedCodes[order.id].length === 0) && (
+                            <p className="text-xs text-gray-500 italic text-center py-2">يرجى الضغط على كشف الكود لرؤية بياناتك</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {order.deliveryStatus && order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'refunded' && (
                     <div className="mb-8 p-6 bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden">
                       <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-3">

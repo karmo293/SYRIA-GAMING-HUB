@@ -28,30 +28,31 @@ const HardwareChecker: React.FC<{ gameTitle: string }> = ({ gameTitle }) => {
 
   const runCheck = () => {
     setChecking(true);
-    // Simulate AI analysis of game requirements vs user specs
-    setTimeout(() => {
-      if (!specs) return;
-
-      let status: 'high' | 'medium' | 'low' | 'unsupported' = 'medium';
-      let message = '';
-
-      if (specs.memory >= 16 && specs.cores >= 8) {
-        status = 'high';
-        message = `ستعمل لعبة ${gameTitle} لديك بأعلى جودة (Ultra Settings) بسلاسة تامة.`;
-      } else if (specs.memory >= 8 && specs.cores >= 4) {
-        status = 'medium';
-        message = `ستعمل لعبة ${gameTitle} لديك بجودة جيدة (High/Medium Settings).`;
-      } else if (specs.memory >= 4) {
-        status = 'low';
-        message = `ستعمل لعبة ${gameTitle} لديك على أقل إعدادات. قد تواجه بعض التقطيع.`;
-      } else {
-        status = 'unsupported';
-        message = `للأسف، جهازك قد لا يدعم تشغيل ${gameTitle} بشكل جيد.`;
-      }
-
-      setResult({ status, message });
+    
+    if (!specs) {
       setChecking(false);
-    }, 2000);
+      return;
+    }
+
+    let status: 'high' | 'medium' | 'low' | 'unsupported' = 'medium';
+    let message = '';
+
+    if (specs.memory >= 16 && specs.cores >= 8) {
+      status = 'high';
+      message = `ستعمل لعبة ${gameTitle} لديك بأعلى جودة (Ultra Settings) بسلاسة تامة.`;
+    } else if (specs.memory >= 8 && specs.cores >= 4) {
+      status = 'medium';
+      message = `ستعمل لعبة ${gameTitle} لديك بجودة جيدة (High/Medium Settings).`;
+    } else if (specs.memory >= 4) {
+      status = 'low';
+      message = `ستعمل لعبة ${gameTitle} لديك على أقل إعدادات. قد تواجه بعض التقطيع.`;
+    } else {
+      status = 'unsupported';
+      message = `للأسف، جهازك قد لا يدعم تشغيل ${gameTitle} بشكل جيد.`;
+    }
+
+    setResult({ status, message });
+    setChecking(false);
   };
 
   return (
