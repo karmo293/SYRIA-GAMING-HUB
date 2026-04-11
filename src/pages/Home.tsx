@@ -9,6 +9,7 @@ import DailyMissions from '../components/DailyMissions';
 import ProductCard from '../components/ProductCard';
 import { Gamepad2, Store, TrendingUp, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { handleFirestoreError, OperationType } from '../utils/errorHandlers';
 
 const Home: React.FC = () => {
   const { userProfile } = useAuth();
@@ -19,9 +20,12 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      console.log("Fetching home data...");
       try {
-        const gamesSnap = await getDocs(query(collection(db, 'games'), orderBy('createdAt', 'desc'), limit(4)));
-        const productsSnap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(8)));
+        const gamesSnap = await getDocs(query(collection(db, 'games'), limit(4)));
+        console.log("Games fetched:", gamesSnap.size);
+        const productsSnap = await getDocs(query(collection(db, 'products'), limit(8)));
+        console.log("Products fetched:", productsSnap.size);
 
         setGames(gamesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Game)));
         const productsData = productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
@@ -33,7 +37,7 @@ const Home: React.FC = () => {
           setRecommended(recs);
         }
       } catch (error) {
-        console.error("Error fetching home data:", error);
+        handleFirestoreError(error, OperationType.GET, 'games/products');
       } finally {
         setLoading(false);
       }

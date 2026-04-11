@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { GoogleGenAI } from '@google/genai';
+import { aiService } from '../services/aiService';
 
 interface VoiceSearchProps {
   onSearch: (query: string) => void;
@@ -81,24 +81,21 @@ const VoiceSearch: React.FC<VoiceSearchProps> = ({ onSearch, placeholder = "تح
   const processWithAI = async (text: string) => {
     setIsProcessing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `
-          أنت خبير في مصطلحات الجيمرز (Gamer Slang). 
-          قم بتحويل النص التالي المأخوذ من بحث صوتي إلى كلمات بحث دقيقة للمتجر.
-          أمثلة:
-          - "بدي شدات" -> "UC PUBG"
-          - "سكنات فورتنايت" -> "Fortnite V-Bucks"
-          - "اشتراك ديسكورد" -> "Discord Nitro"
-          - "ألعاب سوني" -> "PlayStation"
-          - "بي سي" -> "PC Games"
-          
-          النص: "${text}"
-          رد بالكلمات المفتاحية فقط باللغة الإنجليزية أو العربية الفصحى حسب الأنسب للمنتج.
-        `,
-      });
+      const prompt = `
+        أنت خبير في مصطلحات الجيمرز (Gamer Slang). 
+        قم بتحويل النص التالي المأخوذ من بحث صوتي إلى كلمات بحث دقيقة للمتجر.
+        أمثلة:
+        - "بدي شدات" -> "UC PUBG"
+        - "سكنات فورتنايت" -> "Fortnite V-Bucks"
+        - "اشتراك ديسكورد" -> "Discord Nitro"
+        - "ألعاب سوني" -> "PlayStation"
+        - "بي سي" -> "PC Games"
+        
+        النص: "${text}"
+        رد بالكلمات المفتاحية فقط باللغة الإنجليزية أو العربية الفصحى حسب الأنسب للمنتج.
+      `;
 
+      const response = await aiService.chat(prompt);
       const processedQuery = response.text.trim();
       onSearch(processedQuery);
     } catch (error) {

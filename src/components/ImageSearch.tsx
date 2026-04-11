@@ -1,12 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Upload, X, Loader2, Search } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Game, Product } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import { aiService } from '../services/aiService';
 
 interface ImageSearchProps {
   onResults: (results: (Game | Product)[]) => void;
@@ -43,31 +41,7 @@ const ImageSearch: React.FC<ImageSearchProps> = ({ onResults, onClose }) => {
       ];
 
       // 2. Use Gemini to analyze image and find matches
-      const base64Data = image.split(',')[1];
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { inlineData: { data: base64Data, mimeType: "image/jpeg" } },
-              { text: `
-                Analyze this image and find the best matching items from our inventory.
-                Inventory:
-                ${JSON.stringify(inventory)}
-                
-                Task: Return a JSON array of IDs for the items that best match the product in the image.
-                Return ONLY the JSON array.
-              ` }
-            ]
-          }
-        ],
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
-
-      const matchedIds = JSON.parse(response.text || "[]");
+      const matchedIds = await aiService.analyzeImage(image, inventory);
       
       // 3. Get full items
       const allItems = [

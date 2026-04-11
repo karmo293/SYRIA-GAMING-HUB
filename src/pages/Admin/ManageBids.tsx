@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Gavel, CheckCircle2, XCircle, MessageSquare, Search, Filter, Loader2, DollarSign, User, Calendar } from 'lucide-react';
-import { collection, query, onSnapshot, doc, updateDoc, orderBy } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { collection, query, onSnapshot, doc, orderBy } from 'firebase/firestore';
+import { db, auth } from '../../firebase';
 import { Bid } from '../../types';
 import { cn } from '../../lib/utils';
 
@@ -30,14 +30,23 @@ const ManageBids: React.FC = () => {
   const handleRespond = async (bidId: string, status: 'accepted' | 'rejected', response?: string) => {
     setProcessingId(bidId);
     try {
-      const bidRef = doc(db, 'bids', bidId);
-      await updateDoc(bidRef, {
-        status,
-        adminResponse: response || '',
-        updatedAt: new Date().toISOString()
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/bids/respond', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ bidId, status, response: response || '' })
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'فشلت عملية الرد');
+      }
     } catch (error) {
       console.error("Error updating bid:", error);
+      alert(error instanceof Error ? error.message : 'حدث خطأ أثناء الرد على المزايدة');
     } finally {
       setProcessingId(null);
     }

@@ -27,9 +27,11 @@ const generateId = () => {
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, itemTitle, itemType = 'game', isCart }) => {
   const { user, userProfile, updateWallet, addPoints } = useAuth();
-  const { cartItems, clearCart, totalPrice, pointsEarned } = useCart();
+  const { cartItems, clearCart, totalPrice: cartTotalPrice, pointsEarned } = useCart();
   const [step, setStep] = useState<'form' | 'confirm' | 'processing' | 'success'>('form');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet'>('card');
+  const [singleItem, setSingleItem] = useState<{ price: number; imageUrl: string } | null>(null);
+  const [loadingPrice, setLoadingPrice] = useState(false);
   const [formData, setFormData] = useState({
     cardNumber: '',
     expiry: '',
@@ -38,6 +40,32 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
   const [verificationCode, setVerificationCode] = useState('');
   const [userInputCode, setUserInputCode] = useState('');
   const [generatedCode] = useState(() => Math.floor(1000 + Math.random() * 9000).toString());
+
+  const currentTotalPrice = isCart ? cartTotalPrice : (singleItem?.price || 0);
+
+  React.useEffect(() => {
+    if (isOpen && !isCart && itemId) {
+      const fetchPrice = async () => {
+        setLoadingPrice(true);
+        try {
+          const collectionName = itemType === 'game' ? 'games' : 'products';
+          const itemDoc = await getDoc(doc(db, collectionName, itemId));
+          if (itemDoc.exists()) {
+            const data = itemDoc.data();
+            setSingleItem({
+              price: data.ourPrice || data.price || 0,
+              imageUrl: data.imageUrl || ''
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching item price:", error);
+        } finally {
+          setLoadingPrice(false);
+        }
+      };
+      fetchPrice();
+    }
+  }, [isOpen, isCart, itemId, itemType]);
 
   const handleProceedToConfirm = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -61,29 +89,19 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
         const items = isCart ? cartItems : [{
           id: itemId,
           title: itemTitle,
-          price: 0, // We'll need to fetch the real price in the backend or pass it
-          imageUrl: '', // Same here
+          price: singleItem?.price || 0,
+          imageUrl: singleItem?.imageUrl || '',
           quantity: 1
         }];
 
-        // Fetch real prices for single item if needed
-        if (!isCart && itemId) {
-          const collectionName = itemType === 'game' ? 'games' : 'products';
-          const itemDoc = await getDoc(doc(db, collectionName, itemId));
-          if (itemDoc.exists()) {
-            const data = itemDoc.data();
-            items[0].price = data.ourPrice || data.price || 0;
-            items[0].imageUrl = data.imageUrl || '';
-          }
-        }
-
         const response = await fetch('/api/create-checkout-session', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${await user.getIdToken()}`
+          },
           body: JSON.stringify({
-            items,
-            userId: user.uid,
-            userEmail: user.email
+            items
           })
         });
 
@@ -97,7 +115,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
       }
 
       // Wallet payment logic
-      const pointsEarnedForThisPurchase = Math.floor(totalPrice * 10);
+      const pointsEarnedForThisPurchase = Math.floor(currentTotalPrice * 10);
       const idToken = await user.getIdToken(true);
 
       const response = await fetch('/api/pay-with-wallet', {
@@ -110,12 +128,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
           items: isCart ? cartItems : [{
             id: itemId,
             title: itemTitle || '',
-            price: totalPrice,
-            imageUrl: '', 
+            price: singleItem?.price || 0,
+            imageUrl: singleItem?.imageUrl || '', 
             type: itemType,
             quantity: 1
           }],
-          totalPrice,
+          totalPrice: currentTotalPrice,
           pointsEarned: pointsEarnedForThisPurchase
         })
       });
@@ -199,19 +217,26 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
                     </div>
                   </div>
 
-                  <div className="bg-white/5 border border-white/10 p-4 rounded-2xl mb-8">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">
-                      {isCart ? 'إجمالي السلة' : 'المنتج'}
-                    </span>
-                    {isCart ? (
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-black text-white italic">طلب سلة التسوق</span>
-                        <span className="text-cyan-400 font-black text-xl">${totalPrice.toFixed(2)}</span>
-                      </div>
-                    ) : (
-                      <span className="text-lg font-black text-white italic">{itemTitle}</span>
-                    )}
-                  </div>
+                    <div className="bg-white/5 border border-white/10 p-4 rounded-2xl mb-8">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">
+                        {isCart ? 'إجمالي السلة' : 'المنتج'}
+                      </span>
+                      {isCart ? (
+                        <div className="flex justify-between items-center">
+                          <span className="text-lg font-black text-white italic">طلب سلة التسوق</span>
+                          <span className="text-cyan-400 font-black text-xl">${cartTotalPrice.toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-center">
+                          <span className="text-lg font-black text-white italic">{itemTitle}</span>
+                          {loadingPrice ? (
+                            <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
+                          ) : (
+                            <span className="text-cyan-400 font-black text-xl">${singleItem?.price.toFixed(2)}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                   <div className="flex gap-4 mb-8">
                     <button
@@ -306,10 +331,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, itemId, it
                       
                       <button
                         onClick={() => handleProceedToConfirm()}
-                        disabled={(userProfile?.walletBalance || 0) < (isCart ? totalPrice : 0)}
+                        disabled={loadingPrice || (userProfile?.walletBalance || 0) < currentTotalPrice}
                         className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-700 disabled:text-gray-500 text-black py-5 rounded-2xl font-black uppercase tracking-wider text-lg transition-all hover:shadow-[0_0_30px_rgba(234,179,8,0.4)]"
                       >
-                        {(userProfile?.walletBalance || 0) < (isCart ? totalPrice : 0) ? 'رصيد غير كافٍ' : 'متابعة الشراء من المحفظة'}
+                        {(userProfile?.walletBalance || 0) < currentTotalPrice ? 'رصيد غير كافٍ' : 'متابعة الشراء من المحفظة'}
                       </button>
                     </div>
                   )}

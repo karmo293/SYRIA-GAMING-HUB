@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Box, Sparkles, Gift, Loader2, Trophy, Coins } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { GoogleGenAI } from '@google/genai';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
-import { db } from '../firebase';
-import { Game, Product } from '../types';
+import { auth } from '../firebase';
 import { cn } from '../lib/utils';
+import { aiService } from '../services/aiService';
 
 const LootBox: React.FC = () => {
   const { userProfile, updateWallet, addXP } = useAuth();
@@ -27,48 +25,29 @@ const LootBox: React.FC = () => {
     setReward(null);
 
     try {
-      // 1. Deduct balance
-      await updateWallet(-boxPrice);
-
-      // 2. Fetch some items to choose from
-      const gamesSnap = await getDocs(query(collection(db, 'games'), limit(10)));
-      const productsSnap = await getDocs(query(collection(db, 'products'), limit(10)));
-      
-      const allItems = [
-        ...gamesSnap.docs.map(d => ({ ...d.data(), id: d.id, type: 'game' })),
-        ...productsSnap.docs.map(d => ({ ...d.data(), id: d.id, type: 'product' }))
-      ];
-
-      // 3. Use AI to pick a "lucky" reward
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `
-          أنت مدير "صندوق الحظ" (AI Loot Box) في متجر ألعاب.
-          الميزانية المدفوعة: $${boxPrice}.
-          يجب أن تكون قيمة الجائزة دائماً أعلى قليلاً من السعر المدفوع لضمان سعادة العميل.
-          اختر عنصراً واحداً من القائمة التالية ليكون هو الجائزة:
-          ${JSON.stringify(allItems.map(i => ({ id: i.id, title: (i as any).title, price: (i as any).ourPrice || (i as any).price })))}
-          
-          رد بصيغة JSON فقط:
-          { "itemId": "id_here", "reason": "سبب الاختيار باللهجة السورية المحببة" }
-        `,
-        config: { responseMimeType: 'application/json' }
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/lootbox/open', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        }
       });
 
-      const result = JSON.parse(response.text);
-      const selectedItem = allItems.find(i => i.id === result.itemId);
-
-      if (selectedItem) {
-        setReward({ ...selectedItem, reason: result.reason });
-        await addXP(500); // Reward XP for opening a box
-      } else {
-        throw new Error('Failed to select reward');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'فشل فتح الصندوق');
       }
+
+      const data = await res.json();
+      
+      // We can still use AI for the reason if we want, or just show the reward.
+      // For now, let's just show the reward from the server.
+      setReward({ ...data.reward, reason: "مبروك! الذكاء الاصطناعي اختارلك هي الجائزة لأنك بتستاهل الأفضل." });
+      
     } catch (err) {
       console.error('LootBox error:', err);
-      setError('حدث خطأ أثناء فتح الصندوق. تم استرداد المبلغ.');
-      await updateWallet(boxPrice); // Refund on error
+      setError(err instanceof Error ? err.message : 'حدث خطأ أثناء فتح الصندوق.');
     } finally {
       setOpening(false);
     }

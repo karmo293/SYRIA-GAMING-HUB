@@ -41,11 +41,10 @@ const Login: React.FC = () => {
         const user = userCredential.user;
 
         // Create user profile
-        const isAdminEmail = user.email === 'karmo2931@gmail.com' || user.email === 'raskohilal99@gmail.com' || user.email === 'rea2ife@gmail.com';
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email,
-          role: isAdminEmail ? 'admin' : 'user',
+          role: 'user',
           createdAt: new Date().toISOString(),
           ownedGames: [],
           wishlist: [],
@@ -69,11 +68,10 @@ const Login: React.FC = () => {
       // Check if profile exists
       const docSnap = await getDoc(doc(db, 'users', user.uid));
       if (!docSnap.exists()) {
-        const isAdminEmail = user.email === 'karmo2931@gmail.com' || user.email === 'raskohilal99@gmail.com' || user.email === 'rea2ife@gmail.com';
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email,
-          role: isAdminEmail ? 'admin' : 'user',
+          role: 'user',
           createdAt: new Date().toISOString(),
           ownedGames: [],
           wishlist: [],

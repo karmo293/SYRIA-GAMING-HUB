@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
+import { db, auth } from '../../firebase';
 import { ContactMessage } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Trash2, CheckCircle2, Clock, User, MessageSquare, ChevronRight, Search, Filter } from 'lucide-react';
@@ -27,7 +27,16 @@ const ManageMessages: React.FC = () => {
 
   const handleStatusChange = async (id: string, newStatus: 'new' | 'read' | 'replied') => {
     try {
-      await updateDoc(doc(db, 'contact_messages', id), { status: newStatus });
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/messages/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ messageId: id, status: newStatus })
+      });
+      if (!res.ok) throw new Error('Failed to update message status');
     } catch (error) {
       console.error("Error updating status:", error);
     }
@@ -36,7 +45,16 @@ const ManageMessages: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm("هل أنت متأكد من حذف هذه الرسالة؟")) return;
     try {
-      await deleteDoc(doc(db, 'contact_messages', id));
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/messages/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ messageId: id })
+      });
+      if (!res.ok) throw new Error('Failed to delete message');
     } catch (error) {
       console.error("Error deleting message:", error);
     }

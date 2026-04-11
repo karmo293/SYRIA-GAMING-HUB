@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, ShieldAlert, Clock, Info, CheckCircle2, Loader2, Camera, Video, Lock } from 'lucide-react';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { db } from '../firebase';
+import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 
 interface WarrantyCheckerProps {
@@ -12,14 +11,31 @@ interface WarrantyCheckerProps {
 }
 
 const WarrantyChecker: React.FC<WarrantyCheckerProps> = ({ orderId, deliveryDetails, existingLogs = [] }) => {
+  const { user } = useAuth();
   const [isLogging, setIsLogging] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [logs, setLogs] = useState(existingLogs);
 
   const handleLogActivation = async () => {
+    if (!user) return;
     setIsLogging(true);
     
     try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/orders/log-warranty', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ orderId, action: 'activate' })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'فشل تفعيل الضمان');
+      }
+
       const newLog = {
         action: 'Code Revealed & Activation Logged',
         timestamp: new Date().toISOString(),
@@ -27,16 +43,12 @@ const WarrantyChecker: React.FC<WarrantyCheckerProps> = ({ orderId, deliveryDeta
         status: 'Verified'
       };
 
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
-        warrantyLog: arrayUnion(newLog)
-      });
-
       setLogs(prev => [...prev, newLog]);
       setIsLogging(false);
       setShowDetails(true);
     } catch (error) {
       console.error("Error logging warranty:", error);
+      alert(error instanceof Error ? error.message : "حدث خطأ أثناء تفعيل الضمان");
       setIsLogging(false);
     }
   };

@@ -30,23 +30,26 @@ const PriceProtection: React.FC<PriceProtectionProps> = ({ itemId, itemTitle, cu
     setIsProcessing(true);
     
     try {
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 24);
-
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        walletBalance: (userProfile.walletBalance || 0) - protectionFee,
-        lockedPrices: arrayUnion({
-          itemId,
-          price: currentPrice,
-          expiresAt: expiresAt.toISOString()
-        })
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/price-protection/lock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ itemId, itemTitle, currentPrice })
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'فشل تأمين السعر');
+      }
 
       setShowSuccess(true);
       setIsProcessing(false);
     } catch (error) {
       console.error("Error protecting price:", error);
+      alert(error instanceof Error ? error.message : "حدث خطأ أثناء تأمين السعر");
       setIsProcessing(false);
     }
   };

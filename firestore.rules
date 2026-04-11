@@ -28,7 +28,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.role == 'admin';
+      return isAuthenticated() && (
+        request.auth.token.admin == true || 
+        request.auth.token.role == 'admin' ||
+        (request.auth.token.email == 'karmo2931@gmail.com' && request.auth.token.email_verified == true)
+      );
     }
 
     function isOwner(userId) {
@@ -93,6 +97,10 @@ service cloud.firestore {
              (!('subscriptions' in data) || data.subscriptions is list);
     }
 
+    function isWalletOrPointsModified() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['walletBalance', 'points', 'xp', 'level']);
+    }
+
     function isValidOrder(data) {
       return data.userId == request.auth.uid &&
              isValidEmail(data.userEmail) &&
@@ -148,12 +156,12 @@ service cloud.firestore {
 
     match /games/{gameId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() && isValidGame(request.resource.data);
+      allow write: if isAdmin();
     }
 
     match /products/{productId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() && isValidProduct(request.resource.data);
+      allow write: if isAdmin();
     }
 
     match /digitalCodes/{codeId} {
@@ -164,22 +172,21 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
-        (request.resource.data.role == 'user' || isAdmin());
-      allow update: if (isOwner(userId) && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'ownedGames', 'wishlist', 'walletBalance', 'points', 'referralCode', 'referredBy', 
-          'subscriptions', 'notifications', 'displayName', 'xp', 'level', 'referralPoints',
-          'lockedPrices', 'steamId', 'steamProfile', 'steamGames', 'interests', 'quests'
-        ]) && 
-        isValidUser(request.resource.data)
-      ) || isAdmin();
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == userId && !isWalletOrPointsModified());
+      allow delete: if isAdmin();
     }
 
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isAuthenticated() && isValidReview(request.resource.data);
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
+    match /bids/{bidId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
       allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
 

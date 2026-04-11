@@ -7,6 +7,7 @@ import { db } from '../firebase';
 import { Order } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import WarrantyChecker from '../components/WarrantyChecker';
+import { cn } from '../lib/utils';
 
 const Orders: React.FC = () => {
   const { user } = useAuth();
@@ -62,16 +63,44 @@ const Orders: React.FC = () => {
     
     setCancellingId(orderId);
     try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        status: 'cancelled'
+      const idToken = await user?.getIdToken();
+      const res = await fetch('/api/orders/cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ orderId })
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'فشل إلغاء الطلب');
+      }
+
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
     } catch (error) {
       console.error("Error cancelling order:", error);
-      alert("حدث خطأ أثناء إلغاء الطلب");
+      alert(error instanceof Error ? error.message : "حدث خطأ أثناء إلغاء الطلب");
     } finally {
       setCancellingId(null);
     }
+  };
+
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadedId, setDownloadedId] = useState<string | null>(null);
+
+  const handleDownloadInvoice = (orderId: string) => {
+    setDownloadingId(orderId);
+    
+    setTimeout(() => {
+      setDownloadingId(null);
+      setDownloadedId(orderId);
+      
+      setTimeout(() => {
+        setDownloadedId(null);
+      }, 2000);
+    }, 1500);
   };
 
   useEffect(() => {
@@ -394,31 +423,31 @@ const Orders: React.FC = () => {
                     </div>
                     
                     <button 
-                      onClick={() => {
-                        const btn = document.activeElement as HTMLButtonElement;
-                        if (btn) {
-                          const originalText = btn.innerHTML;
-                          btn.disabled = true;
-                          btn.innerHTML = `<svg class="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> جاري التحميل...`;
-                          
-                          setTimeout(() => {
-                            btn.innerHTML = `<svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> تم التحميل`;
-                            btn.classList.remove('bg-cyan-500', 'hover:bg-cyan-600', 'text-black');
-                            btn.classList.add('bg-green-500/20', 'text-green-400', 'border-green-500/30');
-                            
-                            setTimeout(() => {
-                              btn.disabled = false;
-                              btn.innerHTML = originalText;
-                              btn.classList.remove('bg-green-500/20', 'text-green-400', 'border-green-500/30');
-                              btn.classList.add('bg-cyan-500', 'hover:bg-cyan-600', 'text-black');
-                            }, 2000);
-                          }, 1500);
-                        }
-                      }}
-                      className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-black px-6 py-3 rounded-xl font-black text-sm transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)]"
+                      onClick={() => handleDownloadInvoice(order.id)}
+                      disabled={downloadingId === order.id || downloadedId === order.id}
+                      className={cn(
+                        "flex items-center gap-2 px-6 py-3 rounded-xl font-black text-sm transition-all",
+                        downloadedId === order.id 
+                          ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                          : "bg-cyan-500 hover:bg-cyan-600 text-black shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)]"
+                      )}
                     >
-                      <Download className="w-4 h-4" />
-                      تحميل الفاتورة (PDF)
+                      {downloadingId === order.id ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          جاري التحميل...
+                        </>
+                      ) : downloadedId === order.id ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          تم التحميل
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          تحميل الفاتورة (PDF)
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

@@ -107,14 +107,26 @@ const ManageGames: React.FC = () => {
         stock: Number(formData.stock)
       };
 
-      if (editingId) {
-        await updateDoc(doc(db, 'games', editingId), dataToSave);
-      } else {
-        await addDoc(collection(db, 'games'), {
-          ...dataToSave,
-          createdAt: new Date().toISOString()
-        });
+      const idToken = await auth.currentUser?.getIdToken();
+      const endpoint = editingId ? '/api/admin/inventory/update' : '/api/admin/inventory/add';
+      const body = editingId 
+        ? { collectionName: 'games', id: editingId, data: dataToSave }
+        : { collectionName: 'games', data: dataToSave };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'فشلت عملية الحفظ');
       }
+
       setFormData({ 
         title: '', 
         description: '', 
@@ -131,19 +143,34 @@ const ManageGames: React.FC = () => {
       setEditingId(null);
       fetchGames();
     } catch (error) {
-      handleFirestoreError(error, editingId ? OperationType.UPDATE : OperationType.CREATE, 'games');
+      console.error("Error saving game:", error);
+      setError(error instanceof Error ? error.message : 'حدث خطأ أثناء الحفظ');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    // Custom confirm logic could go here, for now we just proceed or use a simpler check
+    if (!window.confirm("هل أنت متأكد من حذف هذه اللعبة؟")) return;
     try {
-      await deleteDoc(doc(db, 'games', id));
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/inventory/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ collectionName: 'games', id })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'فشلت عملية الحذف');
+      }
       fetchGames();
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `games/${id}`);
+      console.error("Error deleting game:", error);
+      setError(error instanceof Error ? error.message : 'حدث خطأ أثناء الحذف');
     }
   };
 

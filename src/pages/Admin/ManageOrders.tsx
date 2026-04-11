@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, doc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { collection, getDocs, doc, arrayUnion, setDoc } from 'firebase/firestore';
+import { db, auth } from '../../firebase';
 import { Order, Notification, DeliveryStatus } from '../../types';
 import { Package, Search, Filter, Loader2, User, Calendar, ChevronRight, XCircle, RefreshCcw, CheckCircle2, Edit3, Save } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -33,19 +33,15 @@ const ManageOrders: React.FC = () => {
   }, []);
 
   const sendNotification = async (userId: string, title: string, message: string) => {
-    const notification: Notification = {
-      id: Math.random().toString(36).substring(2, 15),
-      userId,
-      title,
-      message,
-      type: 'system',
-      createdAt: new Date().toISOString(),
-      read: false
-    };
-
     try {
-      await updateDoc(doc(db, 'users', userId), {
-        notifications: arrayUnion(notification)
+      const idToken = await auth.currentUser?.getIdToken();
+      await fetch('/api/admin/orders/notify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ userId, title, message })
       });
     } catch (error) {
       console.error("Error sending notification:", error);
@@ -57,9 +53,17 @@ const ManageOrders: React.FC = () => {
       const order = orders.find(o => o.id === orderId);
       if (!order) return;
 
-      await updateDoc(doc(db, 'orders', orderId), {
-        status: newStatus
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/orders/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ orderId, status: newStatus })
       });
+
+      if (!res.ok) throw new Error('Failed to update order status');
 
       // Send notification to user
       let title = "";
@@ -94,9 +98,17 @@ const ManageOrders: React.FC = () => {
       const order = orders.find(o => o.id === orderId);
       if (!order) return;
 
-      await updateDoc(doc(db, 'orders', orderId), {
-        deliveryStatus: newStatus
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/orders/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ orderId, deliveryStatus: newStatus })
       });
+
+      if (!res.ok) throw new Error('Failed to update delivery status');
 
       // Send notification to user
       const title = "تحديث حالة التسليم";
@@ -116,9 +128,18 @@ const ManageOrders: React.FC = () => {
   const saveDeliveryDetails = async (orderId: string) => {
     if (!editingDetails) return;
     try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        deliveryDetails: editingDetails.details
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/orders/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ orderId, deliveryDetails: editingDetails.details })
       });
+
+      if (!res.ok) throw new Error('Failed to save delivery details');
+
       setOrders(prev => prev.map(o => 
         o.id === orderId ? { ...o, deliveryDetails: editingDetails.details } : o
       ));

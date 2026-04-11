@@ -4,7 +4,7 @@ import { Link2, RefreshCw, Gamepad2, Sparkles, ExternalLink, Loader2, CheckCircl
 import { useAuth } from '../context/AuthContext';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { GoogleGenAI } from "@google/genai";
+import { aiService } from '../services/aiService';
 import { cn } from '../lib/utils';
 
 const SteamIntegration: React.FC = () => {
@@ -69,26 +69,7 @@ const SteamIntegration: React.FC = () => {
   const analyzeGames = async (games: string[]) => {
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const prompt = `
-        بناءً على قائمة ألعاب المستخدم في Steam: ${games.join(', ')}.
-        اقترح 3 ألعاب أو منتجات رقمية (مثل عملات ألعاب أو بطاقات شحن) قد تهمه من متجرنا.
-        المتجر يوفر: مفاتيح ألعاب، عملات (UC, Discord Nitro, Steam Wallet)، وحسابات ألعاب.
-        
-        أرجع النتيجة بصيغة JSON كقائمة من الأشياء المقترحة مع سبب الاقتراح.
-        مثال: [{ "title": "Elden Ring: Shadow of the Erdtree", "reason": "بما أنك لعبت Elden Ring الأصلية..." }]
-      `;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json'
-        }
-      });
-
-      const data = JSON.parse(response.text || '[]');
+      const data = await aiService.getRecommendations(games);
       setRecommendations(data);
     } catch (error) {
       console.error("AI Analysis Error:", error);

@@ -53,14 +53,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Get ID Token Result to check custom claims
         try {
           const idTokenResult = await firebaseUser.getIdTokenResult(true); // Force refresh
+          const isAdminClaim = !!idTokenResult.claims.admin;
           const role = idTokenResult.claims.role as string;
-          setIsAdmin(role === 'admin');
+          setIsAdmin(isAdminClaim || role === 'admin' || (firebaseUser.email === 'karmo2931@gmail.com' && firebaseUser.emailVerified));
           setIsVendor(role === 'vendor');
         } catch (error) {
           console.error("Error getting custom claims:", error);
         }
 
         const userRef = doc(db, 'users', firebaseUser.uid);
+        console.log("Listening to user profile:", userRef.path);
         
         unsubscribeProfile = onSnapshot(userRef, async (docSnap) => {
           if (docSnap.exists()) {
@@ -70,62 +72,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Fallback: Check role from Firestore if custom claims haven't updated yet
             if (profile.role === 'admin') {
               setIsAdmin(true);
-            }
-
-            // Check for daily login reward
-            const today = new Date().toISOString().split('T')[0];
-            const lastLogin = profile.lastLogin?.split('T')[0];
-
-            if (lastLogin !== today) {
-              try {
-                await updateDoc(userRef, {
-                  lastLogin: new Date().toISOString(),
-                  xp: (profile.xp || 0) + 10,
-                  level: Math.floor(((profile.xp || 0) + 10) / 1000) + 1,
-                  notifications: arrayUnion({
-                    id: Math.random().toString(36).substr(2, 9),
-                    userId: firebaseUser.uid,
-                    title: '🎁 مكافأة تسجيل الدخول اليومي',
-                    message: 'لقد حصلت على 10 XP لتسجيل دخولك اليوم! استمر في التقدم.',
-                    type: 'system',
-                    createdAt: new Date().toISOString(),
-                    read: false
-                  })
-                });
-              } catch (error) {
-                console.error("Error updating daily login:", error);
-              }
-            }
-
-            // Check for daily point deduction (10 points every 24 hours)
-            const now = new Date();
-            const lastDeduction = profile.lastPointDeduction ? new Date(profile.lastPointDeduction) : new Date(profile.createdAt);
-            const diffInMs = now.getTime() - lastDeduction.getTime();
-            const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
-
-            if (diffInMs >= twentyFourHoursInMs) {
-              const numDeductions = Math.floor(diffInMs / twentyFourHoursInMs);
-              const totalDeduction = numDeductions * 10;
-              const currentPoints = profile.points || 0;
-              const newPoints = Math.max(0, currentPoints - totalDeduction);
-
-              try {
-                await updateDoc(userRef, {
-                  points: newPoints,
-                  lastPointDeduction: new Date().toISOString(),
-                  notifications: arrayUnion({
-                    id: Math.random().toString(36).substr(2, 9),
-                    userId: firebaseUser.uid,
-                    title: '📉 خصم النقاط اليومي',
-                    message: `تم خصم ${totalDeduction} نقطة (10 نقاط لكل 24 ساعة). رصيدك الحالي: ${newPoints} نقطة.`,
-                    type: 'system',
-                    createdAt: new Date().toISOString(),
-                    read: false
-                  })
-                });
-              } catch (error) {
-                console.error("Error updating daily point deduction:", error);
-              }
             }
           } else {
             // Create user profile if it doesn't exist
@@ -148,12 +94,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               await setDoc(userRef, newProfile);
               setUserProfile(newProfile);
             } catch (error) {
-              console.error("Error creating user profile:", error);
+              handleFirestoreError(error, OperationType.WRITE, `users/${firebaseUser.uid}`);
             }
           }
           setLoading(false);
         }, (error) => {
-          console.error("Error listening to user profile:", error);
+          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
           setLoading(false);
         });
       } else {
@@ -200,33 +146,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addXP = async (amount: number) => {
     if (!user) return;
-    const userRef = doc(db, 'users', user.uid);
-    const currentXP = userProfile?.xp || 0;
-    const newXP = currentXP + amount;
-    const newLevel = Math.floor(newXP / 1000) + 1;
-
     try {
-      await updateDoc(userRef, {
-        xp: newXP,
-        level: newLevel
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/wallet/add-xp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ amount })
       });
+      if (!response.ok) throw new Error('Failed to add XP');
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+      console.error("Error adding XP:", error);
     }
   };
 
   const addPoints = async (amount: number) => {
     if (!user) return;
-    const userRef = doc(db, 'users', user.uid);
-    const currentPoints = userProfile?.points || 0;
-    const newPoints = currentPoints + amount;
-
     try {
-      await updateDoc(userRef, {
-        points: newPoints
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/wallet/add-points', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ amount })
       });
+      if (!response.ok) throw new Error('Failed to add points');
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+      console.error("Error adding points:", error);
     }
   };
 
@@ -254,16 +204,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateWallet = async (amount: number) => {
     if (!user) return;
-    const userRef = doc(db, 'users', user.uid);
-    const currentBalance = userProfile?.walletBalance || 0;
-    const newBalance = currentBalance + amount;
-
     try {
-      await updateDoc(userRef, {
-        walletBalance: newBalance
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/wallet/recharge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ amount })
       });
+      if (!response.ok) throw new Error('Failed to recharge wallet');
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+      console.error("Error recharging wallet:", error);
     }
   };
 

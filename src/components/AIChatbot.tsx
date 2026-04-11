@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, X, Send, Loader2, Bot, User, Sparkles, ChevronDown, Minimize2, Maximize2 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
-import { GoogleGenAI } from "@google/genai";
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
+import { aiService, AIChatMessage } from '../services/aiService';
 
 interface Message {
   role: 'user' | 'model';
@@ -80,45 +80,20 @@ const AIChatbot: React.FC = () => {
     setLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const context = getPageContext(location.pathname);
       const userDisplayName = userProfile?.displayName || user?.email?.split('@')[0] || 'لاعبنا العزيز';
+      const context = getPageContext(location.pathname);
 
-      const systemInstruction = `
-        أنت مساعد ذكي في موقع "Syria Gaming Hub" (مركز سوريا للألعاب).
-        اسم المستخدم الحالي: ${userDisplayName}.
-        المستخدم يتواجد حالياً في: ${context}.
-        
-        مهامك:
-        1. الإجابة على استفسارات المستخدم حول الألعاب والمنتجات المتوفرة.
-        2. تقديم المساعدة بناءً على الصفحة التي يتواجد فيها المستخدم (مثلاً: إذا كان في صفحة الألعاب، ساعده في العثور على ألعاب معينة).
-        3. كن ودوداً، مهنياً، واستخدم اللغة العربية (اللهجة السورية أو الفصحى البسيطة).
-        4. إذا سأل المستخدم عن طلباته، وجهه لصفحة "طلباتي".
-        5. إذا واجه مشكلة في الدفع، اشرح له الخطوات أو وجهه للدعم الفني.
-        6. إذا كان في صفحة الملف الشخصي، شجعه على ربط حساب Steam للحصول على توصيات مخصصة.
-        7. إذا كان في صفحة الطلبات، ذكره بميزة "الضمان الذكي" لحماية مشترياته.
-        
-        معلومات عن الموقع:
-        - نحن نقدم أفضل الأسعار للألعاب في سوريا.
-        - نوفر بطاقات شحن (Steam, UC, Discord Nitro).
-        - لدينا نظام طلبات وفواتير متطور.
-        - نوفر ميزة "تأمين السعر" و "المزاد العكسي" و "الضمان الذكي".
-      `;
+      const history: AIChatMessage[] = messages.map(m => ({
+        role: m.role,
+        parts: [{ text: m.text }]
+      }));
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: [
-          ...messages.map(m => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            parts: [{ text: m.text }]
-          })),
-          { role: 'user', parts: [{ text: input }] }
-        ],
-        config: {
-          systemInstruction,
-        }
-      });
+      // Add system context as a hidden first message if history is empty
+      const fullMessage = messages.length === 1 
+        ? `[سياق النظام: أنت مساعد ذكي في سوريا جيمينج هب. اسم المستخدم: ${userDisplayName}. الموقع الحالي: ${context}] ${messageText}`
+        : messageText;
+
+      const response = await aiService.chat(fullMessage, history);
       
       const modelMessage: Message = {
         role: 'model',

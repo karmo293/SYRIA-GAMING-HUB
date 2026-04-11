@@ -50,14 +50,23 @@ const Quests = () => {
     if (!user || claiming) return;
     setClaiming(quest.id);
     try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        xp: increment(quest.rewardXp),
-        walletBalance: increment(quest.rewardCoins),
-        'quests': userProfile?.quests?.map(q => q.id === quest.id ? { ...q, completed: true } : q)
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/quests/claim', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ questId: quest.id })
       });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'فشل استلام المكافأة');
+      }
     } catch (error) {
       console.error("Error claiming reward:", error);
+      alert(error instanceof Error ? error.message : "حدث خطأ أثناء استلام المكافأة");
     } finally {
       setClaiming(null);
     }

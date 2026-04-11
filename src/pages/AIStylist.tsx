@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { GoogleGenAI } from "@google/genai";
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Game, Product } from '../types';
@@ -22,11 +21,10 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import { aiService, AIChatMessage } from '../services/aiService';
 
 interface Message {
-  role: 'user' | 'assistant';
+  role: 'user' | 'model';
   content: string;
   suggestions?: (Game | Product)[];
 }
@@ -36,7 +34,7 @@ const AIStylist = () => {
   const { addToCart } = useCart();
   const [messages, setMessages] = useState<Message[]>([
     {
-      role: 'assistant',
+      role: 'model',
       content: "Hello! I'm your AI Gaming Stylist. I can help you build the perfect gaming setup or suggest the best game bundles based on your taste. What are you looking for today? (e.g., 'I want a complete RPG setup' or 'Suggest some competitive FPS games')"
     }
   ]);
@@ -73,51 +71,35 @@ const AIStylist = () => {
     setLoading(true);
 
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            role: 'user',
-            parts: [{
-              text: `
-                You are a professional Gaming Stylist and Setup Consultant.
-                Your goal is to suggest the best combinations of games and gaming products (keys, currency, subscriptions) from the available inventory.
-                
-                Available Inventory:
-                ${JSON.stringify(inventory.map(i => ({ id: i.id, title: i.title, description: i.description, price: (i as any).ourPrice || (i as any).price, type: (i as any).type })))}
-                
-                User Request: "${userMessage}"
-                
-                Previous Conversation:
-                ${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
-                
-                Task:
-                1. Provide a helpful, enthusiastic response in a "gaming expert" tone.
-                2. Identify specific items from the inventory that match the request.
-                3. Return a JSON object with:
-                   - "text": Your response message.
-                   - "suggestionIds": An array of IDs for the items you suggest.
-              `
-            }]
-          }
-        ],
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
+      const history: AIChatMessage[] = messages.map(m => ({
+        role: m.role,
+        parts: [{ text: m.content }]
+      }));
 
-      const result = JSON.parse(response.text || "{}");
+      const inventoryContext = `Available Inventory: ${JSON.stringify(inventory.map(i => ({ id: i.id, title: i.title, description: i.description, price: (i as any).ourPrice || (i as any).price, type: (i as any).type })))}`;
+      
+      const fullMessage = `[Inventory Context: ${inventoryContext}] User Request: ${userMessage}. Return JSON with "text" and "suggestionIds".`;
+
+      const response = await aiService.chat(fullMessage, history);
+      
+      // The backend returns { text: "..." }
+      // But here we expect JSON with suggestionIds. 
+      // I should probably update the backend to handle this or just parse it here.
+      // Since I updated the backend to return { text: response.text() }, 
+      // I need to parse the text as JSON if it's meant to be JSON.
+
+      const result = JSON.parse(response.text.replace(/```json\n?|\n?```/g, '').trim() || "{}");
       const suggestions = inventory.filter(item => result.suggestionIds?.includes(item.id));
 
       setMessages(prev => [...prev, { 
-        role: 'assistant', 
+        role: 'model', 
         content: result.text || "I found some great options for you!",
         suggestions 
       }]);
     } catch (error) {
       console.error("AI Stylist error:", error);
       setMessages(prev => [...prev, { 
-        role: 'assistant', 
+        role: 'model', 
         content: "I'm sorry, I hit a lag spike. Could you try rephrasing that?" 
       }]);
     } finally {

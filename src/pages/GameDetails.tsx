@@ -59,7 +59,7 @@ const GameDetails: React.FC = () => {
     if (id) {
       const q = query(
         collection(db, 'reviews'),
-        where('gameId', '==', id),
+        where('productId', '==', id),
         orderBy('createdAt', 'desc')
       );
       
@@ -78,7 +78,7 @@ const GameDetails: React.FC = () => {
     setSubmitting(true);
     try {
       const newReview = {
-        gameId: id,
+        productId: id,
         userId: user.uid,
         userEmail: user.email,
         rating,
@@ -89,7 +89,7 @@ const GameDetails: React.FC = () => {
       await addDoc(collection(db, 'reviews'), newReview);
       
       // Update game's average rating denormalized on the game document
-      const allReviewsSnap = await getDocs(query(collection(db, 'reviews'), where('gameId', '==', id)));
+      const allReviewsSnap = await getDocs(query(collection(db, 'reviews'), where('productId', '==', id)));
       const allReviews = allReviewsSnap.docs.map(doc => doc.data() as Review);
       const newRatingCount = allReviews.length;
       const newAverageRating = allReviews.reduce((acc, r) => acc + r.rating, 0) / newRatingCount;

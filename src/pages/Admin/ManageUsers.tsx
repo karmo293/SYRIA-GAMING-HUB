@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, doc, updateDoc, query, where, limit } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { collection, getDocs, doc, query, where, limit } from 'firebase/firestore';
+import { db, auth } from '../../firebase';
 import { Users, Search, DollarSign, Save, Loader2, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { UserProfile } from '../../types';
@@ -55,13 +55,24 @@ const ManageUsers: React.FC = () => {
   const updateBalance = async (uid: string, newBalance: number) => {
     setUpdating(uid);
     try {
-      const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, {
-        walletBalance: newBalance
+      const idToken = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/admin/update-wallet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ targetUserId: uid, amount: newBalance })
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'فشلت عملية التحديث');
+      }
+
       setUsers(prev => prev.map(u => u.uid === uid ? { ...u, walletBalance: newBalance } : u));
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+      console.error("Error updating balance:", err);
       setError('فشل تحديث الرصيد.');
     } finally {
       setUpdating(null);
